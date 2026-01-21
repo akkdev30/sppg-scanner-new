@@ -1,7 +1,7 @@
 // app/_layout.tsx
-import { useEffect } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 
 function RootLayoutNav() {
@@ -19,8 +19,10 @@ function RootLayoutNav() {
       router.replace("/(auth)/login");
     } else if (user && inAuthGroup) {
       // Redirect setelah login berdasarkan role
-      if (user.role === "admin") {
+      if (user.role === "owner") {
         router.replace("/dashboard");
+      } else if (user.role === "admin") {
+        router.replace("/(admin)/dashboard");
       } else {
         router.replace("/scanner");
       }

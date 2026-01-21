@@ -32,7 +32,7 @@ interface ScanMetadata {
   notes?: string;
 }
 
-const API_URL = "https://sppg-backend.vercel.app/api"; // Ganti dengan URL backend Anda
+const API_URL = "https://niftiest-longanamous-dreama.ngrok-free.dev/api"; // Ganti dengan URL backend Anda
 
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();

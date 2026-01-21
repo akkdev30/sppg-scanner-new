@@ -12,8 +12,7 @@ import React, {
 // Types
 interface User {
   id: string;
-  email: string;
-  name: string;
+  username: string;
   role: string;
   sppg_zone?: string;
   phone_number?: string;
@@ -44,7 +43,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<User>;
+  login: (username: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
   getProfile: () => Promise<User>;
   isAdmin: boolean;
@@ -63,7 +62,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const API_URL = "https://sppg-backend.vercel.app/api/auth";
+  const API_URL = "https://niftiest-longanamous-dreama.ngrok-free.dev/api/auth";
 
   // Load token dari storage saat app start
   useEffect(() => {
@@ -107,10 +106,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const login = async (email: string, password: string): Promise<User> => {
+  const login = async (username: string, password: string): Promise<User> => {
     try {
       const response = await axios.post<LoginResponse>(`${API_URL}/login`, {
-        email,
+        username,
         password,
       });
 
@@ -194,4 +193,4 @@ export const useAuth = (): AuthContextType => {
 };
 
 // Export API_URL untuk digunakan di komponen lain
-export const API_URL = "https://sppg-backend.vercel.app/api";
+export const API_URL = "https://niftiest-longanamous-dreama.ngrok-free.dev/api";

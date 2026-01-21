@@ -16,21 +16,21 @@ import {
 import { useAuth } from "../../context/AuthContext";
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState<string>("");
+  const [username, setUsername] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const { login } = useAuth();
   const router = useRouter();
 
   const handleLogin = async (): Promise<void> => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert("Error", "Email dan password harus diisi");
+    if (!username.trim() || !password.trim()) {
+      Alert.alert("Error", "username dan password harus diisi");
       return;
     }
 
     setLoading(true);
     try {
-      const user = await login(email.trim(), password);
+      const user = await login(username.trim(), password);
 
       // Navigation akan di-handle otomatis oleh RootLayoutNav
       // berdasarkan role user
@@ -64,19 +64,19 @@ export default function LoginScreen() {
 
           {/* Login Form */}
           <View style={styles.formContainer}>
-            <Text style={styles.formTitle}>Login</Text>
+            <Text style={styles.formTitle}>Login Testing</Text>
 
-            {/* Email Input */}
+            {/* username Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email</Text>
+              <Text style={styles.label}>Username</Text>
               <TextInput
                 style={styles.input}
-                placeholder="nama@email.com"
+                placeholder="Your username"
                 placeholderTextColor="#9CA3AF"
-                value={email}
-                onChangeText={setEmail}
+                value={username}
+                onChangeText={setUsername}
                 autoCapitalize="none"
-                keyboardType="email-address"
+                keyboardType="username-address"
                 editable={!loading}
               />
             </View>

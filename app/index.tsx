@@ -23,8 +23,8 @@ function AppNavigator() {
     return <LoginScreen />;
   }
 
-  // Admin -> Dashboard
-  if (user.role === "admin") {
+  // Admin or Owner -> Dashboard
+  if (user.role === "owner" || user.role === "admin") {
     return <DashboardScreen />;
   }
 

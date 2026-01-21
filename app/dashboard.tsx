@@ -1,10 +1,11 @@
-// app/dashboard.tsx
+// app/dashboard/owner.tsx
 import axios from "axios";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -12,98 +13,149 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { LineChart, PieChart } from "react-native-chart-kit";
 import { useAuth } from "../context/AuthContext";
 
-interface Stats {
-  totalScans: number;
+interface DashboardStats {
+  totalSPPG: number;
+  totalSchools: number;
+  totalMenus: number;
+  totalQRScans: number;
   todayScans: number;
-  activeUsers: number;
-  zones: number;
+  problematicMenus: number;
+  activeZones: number;
+  totalStudents: number;
 }
 
-interface MonitoringItem {
-  id: string;
-  "NAMA SPPG": string;
-  "NAMA SEKOLAH": string;
-  TANGGAL: string;
-  "JAM TERIMA": string;
-  "JAM PRODUKSI": string;
-  "MAX. KONSUMSI": string;
-  MENU: string;
-  "NAMA PIC": string;
-  "KET.": string;
-  STATUS: string;
+interface ScanTrend {
+  date: string;
+  count: number;
 }
 
-interface StatCardProps {
-  title: string;
-  value: number;
+interface ZoneDistribution {
+  name: string;
+  count: number;
   color: string;
-  icon: string;
 }
 
-const API_URL = "https://sppg-backend.vercel.app/api";
+interface MenuPerformance {
+  menuName: string;
+  productionPortion: number;
+  receivedPortion: number;
+  efficiency: number;
+  problemCount: number;
+}
 
-export default function DashboardScreen() {
+interface RecentScan {
+  id: string;
+  schoolName: string;
+  sppgName: string;
+  menuName: string;
+  scannedAt: string;
+  status: string;
+}
+
+interface AlertItem {
+  id: string;
+  type: "warning" | "error" | "info";
+  title: string;
+  message: string;
+  timestamp: string;
+}
+
+const API_URL = "https://niftiest-longanamous-dreama.ngrok-free.dev:3000/api";
+const { width: screenWidth } = Dimensions.get("window");
+
+export default function OwnerDashboardScreen() {
   const { user, logout, token } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
-  const [stats, setStats] = useState<Stats>({
-    totalScans: 0,
+  const [stats, setStats] = useState<DashboardStats>({
+    totalSPPG: 0,
+    totalSchools: 0,
+    totalMenus: 0,
+    totalQRScans: 0,
     todayScans: 0,
-    activeUsers: 0,
-    zones: 0,
+    problematicMenus: 0,
+    activeZones: 0,
+    totalStudents: 0,
   });
-  const [monitoring, setMonitoring] = useState<MonitoringItem[]>([]);
+
+  const [scanTrends, setScanTrends] = useState<ScanTrend[]>([]);
+  const [zoneDistribution, setZoneDistribution] = useState<ZoneDistribution[]>(
+    [],
+  );
+  const [topMenus, setTopMenus] = useState<MenuPerformance[]>([]);
+  const [recentScans, setRecentScans] = useState<RecentScan[]>([]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
 
   useEffect(() => {
     loadDashboardData();
+    const interval = setInterval(() => {
+      loadDashboardData(false);
+    }, 30000); // Auto-refresh every 30 seconds
+    return () => clearInterval(interval);
   }, []);
 
-  const loadDashboardData = async (): Promise<void> => {
+  const loadDashboardData = async (
+    showLoading: boolean = true,
+  ): Promise<void> => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
 
-      // Load stats
-      try {
-        const statsResponse = await axios.get(
-          `${API_URL}/monitoring/dashboard/stats`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          },
-        );
+      // Load all dashboard data in parallel
+      const [statsRes, trendsRes, zonesRes, menusRes, scansRes, alertsRes] =
+        await Promise.allSettled([
+          axios.get(`${API_URL}/owner/dashboard/stats`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          axios.get(`${API_URL}/owner/dashboard/scan-trends?days=7`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          axios.get(`${API_URL}/owner/dashboard/zone-distribution`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          axios.get(`${API_URL}/owner/dashboard/menu-performance?limit=5`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          axios.get(`${API_URL}/owner/dashboard/recent-scans?limit=10`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          axios.get(`${API_URL}/owner/dashboard/alerts`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
 
-        if (statsResponse.data.success) {
-          setStats(statsResponse.data.stats);
-        }
-      } catch (error) {
-        console.log("Stats endpoint not available, using default values");
+      // Process responses
+      if (statsRes.status === "fulfilled" && statsRes.value.data.success) {
+        setStats(statsRes.value.data.stats);
       }
 
-      // Load today's monitoring
-      try {
-        const monitoringResponse = await axios.get(
-          `${API_URL}/monitoring/today`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          },
-        );
+      if (trendsRes.status === "fulfilled" && trendsRes.value.data.success) {
+        setScanTrends(trendsRes.value.data.trends);
+      }
 
-        if (monitoringResponse.data.success) {
-          setMonitoring(monitoringResponse.data.data);
-        }
-      } catch (error) {
-        console.error("Load monitoring error:", error);
+      if (zonesRes.status === "fulfilled" && zonesRes.value.data.success) {
+        setZoneDistribution(zonesRes.value.data.distribution);
+      }
+
+      if (menusRes.status === "fulfilled" && menusRes.value.data.success) {
+        setTopMenus(menusRes.value.data.menus);
+      }
+
+      if (scansRes.status === "fulfilled" && scansRes.value.data.success) {
+        setRecentScans(scansRes.value.data.scans);
+      }
+
+      if (alertsRes.status === "fulfilled" && alertsRes.value.data.success) {
+        setAlerts(alertsRes.value.data.alerts);
       }
     } catch (error) {
       console.error("Load dashboard error:", error);
+      Alert.alert("Error", "Gagal memuat data dashboard");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -127,34 +179,71 @@ export default function DashboardScreen() {
     ]);
   };
 
-  const StatCard: React.FC<StatCardProps> = ({ title, value, color, icon }) => (
+  const StatCard: React.FC<{
+    title: string;
+    value: number;
+    icon: string;
+    color: string;
+    subtitle?: string;
+  }> = ({ title, value, icon, color, subtitle }) => (
     <View style={[styles.statCard, { backgroundColor: color }]}>
-      <View style={styles.statCardContent}>
-        <View style={styles.statCardText}>
-          <Text style={styles.statCardTitle}>{title}</Text>
-          <Text style={styles.statCardValue}>{value}</Text>
-        </View>
-        <View style={styles.statCardIcon}>
-          <Text style={styles.statCardIconText}>{icon}</Text>
-        </View>
+      <View style={styles.statIcon}>
+        <Text style={styles.statIconText}>{icon}</Text>
+      </View>
+      <View style={styles.statContent}>
+        <Text style={styles.statValue}>{value.toLocaleString()}</Text>
+        <Text style={styles.statTitle}>{title}</Text>
+        {subtitle && <Text style={styles.statSubtitle}>{subtitle}</Text>}
       </View>
     </View>
   );
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "menunggu":
-        return "#EAB308";
-      case "diterima":
-        return "#3B82F6";
-      case "produksi":
-        return "#8B5CF6";
-      case "distribusi":
-        return "#10B981";
-      default:
-        return "#6B7280";
-    }
+  const AlertCard: React.FC<{ alert: AlertItem }> = ({ alert }) => {
+    const getAlertColor = () => {
+      switch (alert.type) {
+        case "error":
+          return "#EF4444";
+        case "warning":
+          return "#F59E0B";
+        case "info":
+          return "#3B82F6";
+        default:
+          return "#6B7280";
+      }
+    };
+
+    return (
+      <View style={[styles.alertCard, { borderLeftColor: getAlertColor() }]}>
+        <View style={styles.alertHeader}>
+          <Text style={[styles.alertTitle, { color: getAlertColor() }]}>
+            {alert.title}
+          </Text>
+          <Text style={styles.alertTime}>
+            {new Date(alert.timestamp).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </Text>
+        </View>
+        <Text style={styles.alertMessage}>{alert.message}</Text>
+      </View>
+    );
   };
+
+  const QuickAction: React.FC<{
+    title: string;
+    icon: string;
+    onPress: () => void;
+    color: string;
+  }> = ({ title, icon, onPress, color }) => (
+    <TouchableOpacity
+      style={[styles.quickAction, { backgroundColor: color }]}
+      onPress={onPress}
+    >
+      <Text style={styles.quickActionIcon}>{icon}</Text>
+      <Text style={styles.quickActionText}>{title}</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
@@ -162,9 +251,9 @@ export default function DashboardScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.headerTitle}>Dashboard</Text>
+            <Text style={styles.headerTitle}>Dashboard Owner</Text>
             <Text style={styles.headerSubtitle}>
-              Welcome, {user?.name || "User"}
+              Super Admin - Sistem Monitoring SPPG
             </Text>
           </View>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -172,15 +261,39 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* User Info */}
-        <View style={styles.userInfo}>
-          <Text style={styles.userInfoLabel}>
-            {user?.role?.toUpperCase() || "USER"}
-          </Text>
-          {user?.sppg_zone && (
-            <Text style={styles.userInfoZone}>{user.sppg_zone}</Text>
-          )}
-        </View>
+        {/* Quick Stats */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.quickStats}
+        >
+          <StatCard
+            title="Total SPPG"
+            value={stats.totalSPPG}
+            icon="🏢"
+            color="#3B82F6"
+          />
+          <StatCard
+            title="Sekolah"
+            value={stats.totalSchools}
+            icon="🏫"
+            color="#10B981"
+            subtitle={`${stats.totalStudents.toLocaleString()} siswa`}
+          />
+          <StatCard
+            title="Scan QR"
+            value={stats.totalQRScans}
+            icon="📱"
+            color="#8B5CF6"
+            subtitle={`${stats.todayScans} hari ini`}
+          />
+          <StatCard
+            title="Menu Bermasalah"
+            value={stats.problematicMenus}
+            icon="⚠️"
+            color="#F59E0B"
+          />
+        </ScrollView>
       </View>
 
       <ScrollView
@@ -189,134 +302,197 @@ export default function DashboardScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+        {/* Quick Actions */}
         <View style={styles.section}>
-          {/* Statistics */}
-          <Text style={styles.sectionTitle}>Statistik Hari Ini</Text>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.quickActionsGrid}>
+            <QuickAction
+              title="Manage SPPG"
+              icon="🏢"
+              color="#3B82F6"
+              onPress={() => router.push("/owner/sppg-management")}
+            />
+            <QuickAction
+              title="Manage Schools"
+              icon="🏫"
+              color="#10B981"
+              onPress={() => router.push("/owner/school-management")}
+            />
+            <QuickAction
+              title="Reports"
+              icon="📊"
+              color="#8B5CF6"
+              onPress={() => router.push("/owner/reports")}
+            />
+            <QuickAction
+              title="Settings"
+              icon="⚙️"
+              color="#6B7280"
+              onPress={() => router.push("/owner/settings")}
+            />
+          </View>
+        </View>
 
-          {loading && !refreshing ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#2563EB" />
-            </View>
+        {/* Charts Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Analytics & Trends</Text>
+
+          {loading ? (
+            <ActivityIndicator size="large" color="#2563EB" />
           ) : (
-            <View style={styles.statsGrid}>
-              <View style={styles.statWrapper}>
-                <StatCard
-                  title="Total Scan"
-                  value={stats.totalScans}
-                  color="#3B82F6"
-                  icon="📊"
-                />
+            <>
+              {/* Scan Trends Chart */}
+              <View style={styles.chartCard}>
+                <Text style={styles.chartTitle}>Scan Trends (7 Hari)</Text>
+                {scanTrends.length > 0 ? (
+                  <LineChart
+                    data={{
+                      labels: scanTrends.map((t) => t.date.split("-")[2]),
+                      datasets: [
+                        {
+                          data: scanTrends.map((t) => t.count),
+                        },
+                      ],
+                    }}
+                    width={screenWidth - 48}
+                    height={200}
+                    chartConfig={{
+                      backgroundColor: "#FFFFFF",
+                      backgroundGradientFrom: "#FFFFFF",
+                      backgroundGradientTo: "#FFFFFF",
+                      decimalPlaces: 0,
+                      color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
+                      style: {
+                        borderRadius: 16,
+                      },
+                    }}
+                    bezier
+                    style={styles.chart}
+                  />
+                ) : (
+                  <Text style={styles.noDataText}>No data available</Text>
+                )}
               </View>
-              <View style={styles.statWrapper}>
-                <StatCard
-                  title="Scan Hari Ini"
-                  value={stats.todayScans}
-                  color="#10B981"
-                  icon="✓"
-                />
+
+              {/* Zone Distribution */}
+              <View style={styles.chartCard}>
+                <Text style={styles.chartTitle}>Distribusi Zona</Text>
+                {zoneDistribution.length > 0 ? (
+                  <PieChart
+                    data={zoneDistribution}
+                    width={screenWidth - 48}
+                    height={200}
+                    chartConfig={{
+                      color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                    }}
+                    accessor="count"
+                    backgroundColor="transparent"
+                    paddingLeft="15"
+                    absolute
+                  />
+                ) : (
+                  <Text style={styles.noDataText}>No data available</Text>
+                )}
               </View>
-            </View>
+            </>
           )}
+        </View>
 
-          {/* Scan Barcode Button */}
-          <TouchableOpacity
-            style={styles.scanButton}
-            onPress={() => router.push("/scanner")}
-          >
-            <View style={styles.scanButtonIcon}>
-              <Text style={styles.scanButtonIconText}>📷</Text>
-            </View>
-            <Text style={styles.scanButtonText}>Scan Barcode</Text>
-          </TouchableOpacity>
+        {/* Recent Scans & Alerts */}
+        <View style={styles.section}>
+          <View style={styles.halfSection}>
+            <Text style={styles.sectionTitle}>Recent Scans</Text>
+            {recentScans.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>No recent scans</Text>
+              </View>
+            ) : (
+              recentScans.slice(0, 5).map((scan, index) => (
+                <View key={scan.id || index} style={styles.scanCard}>
+                  <View style={styles.scanHeader}>
+                    <Text style={styles.scanSchool}>{scan.schoolName}</Text>
+                    <Text style={styles.scanTime}>
+                      {new Date(scan.scannedAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  </View>
+                  <Text style={styles.scanMenu}>{scan.menuName}</Text>
+                  <Text style={styles.scanSPPG}>{scan.sppgName}</Text>
+                </View>
+              ))
+            )}
+          </View>
 
-          {/* Monitoring List */}
-          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
-            Monitoring Hari Ini
-          </Text>
+          <View style={styles.halfSection}>
+            <Text style={styles.sectionTitle}>System Alerts</Text>
+            {alerts.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>No alerts</Text>
+              </View>
+            ) : (
+              alerts
+                .slice(0, 3)
+                .map((alert, index) => (
+                  <AlertCard key={alert.id || index} alert={alert} />
+                ))
+            )}
+          </View>
+        </View>
 
-          {loading && !refreshing ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#2563EB" />
-            </View>
-          ) : monitoring.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📋</Text>
-              <Text style={styles.emptyText}>
-                Belum ada data monitoring hari ini
-              </Text>
+        {/* Menu Performance */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Top Menu Performance</Text>
+          {topMenus.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>No menu data</Text>
             </View>
           ) : (
-            <View style={styles.monitoringList}>
-              {monitoring.map((item, index) => (
-                <View key={item.id || index} style={styles.monitoringCard}>
-                  {/* Header */}
-                  <View style={styles.monitoringHeader}>
-                    <View style={styles.monitoringHeaderLeft}>
-                      <Text style={styles.monitoringSchool}>
-                        {item["NAMA SEKOLAH"]}
-                      </Text>
-                      <Text style={styles.monitoringZone}>
-                        {item["NAMA SPPG"]}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        { backgroundColor: getStatusColor(item.STATUS) },
-                      ]}
-                    >
-                      <Text style={styles.statusText}>{item.STATUS}</Text>
-                    </View>
-                  </View>
-
-                  {/* Times */}
-                  <View style={styles.monitoringTimes}>
-                    <View style={styles.timeItem}>
-                      <Text style={styles.timeLabel}>Jam Terima</Text>
-                      <Text style={styles.timeValue}>
-                        {item["JAM TERIMA"] || "-"}
-                      </Text>
-                    </View>
-                    <View style={styles.timeItem}>
-                      <Text style={styles.timeLabel}>Jam Produksi</Text>
-                      <Text style={styles.timeValue}>
-                        {item["JAM PRODUKSI"] || "-"}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Details */}
-                  {(item.MENU || item["NAMA PIC"] || item["MAX. KONSUMSI"]) && (
-                    <View style={styles.monitoringDetails}>
-                      {item.MENU && (
-                        <Text style={styles.detailText}>Menu: {item.MENU}</Text>
-                      )}
-                      {item["MAX. KONSUMSI"] && (
-                        <Text style={styles.detailText}>
-                          Max Konsumsi: {item["MAX. KONSUMSI"]}
-                        </Text>
-                      )}
-                      {item["NAMA PIC"] && (
-                        <Text style={styles.detailText}>
-                          PIC: {item["NAMA PIC"]}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-
-                  {/* Notes */}
-                  {item["KET."] && item["KET."] !== "-" && (
-                    <View style={styles.notesContainer}>
-                      <Text style={styles.notesLabel}>Catatan:</Text>
-                      <Text style={styles.notesText}>{item["KET."]}</Text>
-                    </View>
-                  )}
+            <View style={styles.performanceTable}>
+              <View style={styles.tableHeader}>
+                <Text style={styles.tableHeaderCell}>Menu</Text>
+                <Text style={styles.tableHeaderCell}>Produksi</Text>
+                <Text style={styles.tableHeaderCell}>Diterima</Text>
+                <Text style={styles.tableHeaderCell}>Efisiensi</Text>
+              </View>
+              {topMenus.map((menu, index) => (
+                <View key={index} style={styles.tableRow}>
+                  <Text style={styles.tableCell} numberOfLines={1}>
+                    {menu.menuName}
+                  </Text>
+                  <Text style={styles.tableCell}>{menu.productionPortion}</Text>
+                  <Text style={styles.tableCell}>{menu.receivedPortion}</Text>
+                  <Text
+                    style={[
+                      styles.tableCell,
+                      {
+                        color:
+                          menu.efficiency >= 90
+                            ? "#10B981"
+                            : menu.efficiency >= 80
+                              ? "#F59E0B"
+                              : "#EF4444",
+                      },
+                    ]}
+                  >
+                    {menu.efficiency}%
+                  </Text>
                 </View>
               ))}
             </View>
           )}
         </View>
       </ScrollView>
+
+      {/* Floating Export Button */}
+      <TouchableOpacity
+        style={styles.exportButton}
+        onPress={() => router.push("/owner/export")}
+      >
+        <Text style={styles.exportButtonIcon}>📥</Text>
+        <Text style={styles.exportButtonText}>Export Data</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -327,15 +503,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9FAFB",
   },
   header: {
-    backgroundColor: "#2563EB",
+    backgroundColor: "#1F2937",
     paddingTop: 48,
-    paddingBottom: 24,
-    paddingHorizontal: 16,
+    paddingBottom: 20,
   },
   headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    paddingHorizontal: 16,
     marginBottom: 16,
   },
   headerTitle: {
@@ -344,12 +520,12 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   headerSubtitle: {
-    color: "#DBEAFE",
+    color: "#9CA3AF",
     fontSize: 14,
     marginTop: 4,
   },
   logoutButton: {
-    backgroundColor: "#1D4ED8",
+    backgroundColor: "#374151",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -358,22 +534,46 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "500",
   },
-  userInfo: {
-    backgroundColor: "rgba(29, 78, 216, 0.5)",
+  quickStats: {
+    paddingHorizontal: 16,
+  },
+  statCard: {
+    width: 160,
     borderRadius: 12,
-    padding: 12,
+    padding: 16,
+    marginRight: 12,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
   },
-  userInfoLabel: {
-    color: "white",
-    fontWeight: "600",
-    fontSize: 16,
+  statIcon: {
+    width: 48,
+    height: 48,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
   },
-  userInfoZone: {
-    color: "#DBEAFE",
-    fontSize: 14,
+  statIconText: {
+    fontSize: 20,
+  },
+  statContent: {
+    flex: 1,
+  },
+  statValue: {
+    color: "white",
+    fontSize: 24,
+    fontWeight: "bold",
+  },
+  statTitle: {
+    color: "rgba(255, 255, 255, 0.9)",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  statSubtitle: {
+    color: "rgba(255, 255, 255, 0.6)",
+    fontSize: 10,
+    marginTop: 2,
   },
   content: {
     flex: 1,
@@ -382,187 +582,188 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   sectionTitle: {
-    color: "#1F2937",
+    color: "#111827",
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 16,
   },
-  loadingContainer: {
-    padding: 40,
-    alignItems: "center",
-  },
-  statsGrid: {
+  quickActionsGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
-    marginBottom: 24,
   },
-  statWrapper: {
+  quickAction: {
     flex: 1,
+    minWidth: 80,
+    aspectRatio: 1,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
   },
-  statCard: {
-    borderRadius: 16,
+  quickActionIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  quickActionText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  chartCard: {
+    backgroundColor: "white",
+    borderRadius: 12,
     padding: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 3,
   },
-  statCardContent: {
+  chartTitle: {
+    color: "#374151",
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  chart: {
+    borderRadius: 8,
+  },
+  halfSection: {
+    flex: 1,
+    marginBottom: 16,
+  },
+  emptyCard: {
+    backgroundColor: "white",
+    borderRadius: 8,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyText: {
+    color: "#6B7280",
+    fontSize: 14,
+  },
+  scanCard: {
+    backgroundColor: "white",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: "#3B82F6",
+  },
+  scanHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-  },
-  statCardText: {
-    flex: 1,
-  },
-  statCardTitle: {
-    color: "rgba(255, 255, 255, 0.8)",
-    fontSize: 14,
+    alignItems: "flex-start",
     marginBottom: 4,
   },
-  statCardValue: {
-    color: "white",
-    fontSize: 30,
-    fontWeight: "bold",
+  scanSchool: {
+    color: "#111827",
+    fontSize: 14,
+    fontWeight: "600",
+    flex: 1,
   },
-  statCardIcon: {
-    width: 48,
-    height: 48,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
+  scanTime: {
+    color: "#6B7280",
+    fontSize: 12,
   },
-  statCardIconText: {
-    fontSize: 24,
+  scanMenu: {
+    color: "#374151",
+    fontSize: 13,
+    marginBottom: 2,
   },
-  scanButton: {
-    backgroundColor: "#2563EB",
-    borderRadius: 16,
-    padding: 20,
+  scanSPPG: {
+    color: "#6B7280",
+    fontSize: 11,
+  },
+  alertCard: {
+    backgroundColor: "white",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+  },
+  alertHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 4,
+  },
+  alertTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    flex: 1,
+  },
+  alertTime: {
+    color: "#9CA3AF",
+    fontSize: 11,
+  },
+  alertMessage: {
+    color: "#4B5563",
+    fontSize: 12,
+  },
+  performanceTable: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  tableHeader: {
+    flexDirection: "row",
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  tableHeaderCell: {
+    flex: 1,
+    color: "#374151",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  tableRow: {
+    flexDirection: "row",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  tableCell: {
+    flex: 1,
+    color: "#4B5563",
+    fontSize: 13,
+  },
+  exportButton: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    backgroundColor: "#111827",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#2563EB",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 30,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
   },
-  scanButtonIcon: {
-    width: 56,
-    height: 56,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 16,
-  },
-  scanButtonIconText: {
-    fontSize: 28,
-  },
-  scanButtonText: {
+  exportButtonIcon: {
     color: "white",
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  monitoringList: {
-    gap: 12,
-  },
-  monitoringCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  monitoringHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12,
-  },
-  monitoringHeaderLeft: {
-    flex: 1,
-    marginRight: 12,
-  },
-  monitoringSchool: {
-    color: "#1F2937",
     fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 4,
+    marginRight: 8,
   },
-  monitoringZone: {
-    color: "#6B7280",
-    fontSize: 14,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusText: {
+  exportButtonText: {
     color: "white",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  monitoringTimes: {
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  timeItem: {
-    flex: 1,
-  },
-  timeLabel: {
-    color: "#6B7280",
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  timeValue: {
-    color: "#1F2937",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  monitoringDetails: {
-    gap: 6,
-    marginBottom: 8,
-  },
-  detailText: {
-    color: "#4B5563",
     fontSize: 14,
+    fontWeight: "500",
   },
-  notesContainer: {
-    backgroundColor: "#FEF3C7",
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 8,
-  },
-  notesLabel: {
-    color: "#92400E",
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  notesText: {
-    color: "#78350F",
-    fontSize: 13,
-  },
-  emptyContainer: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 40,
-    alignItems: "center",
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  emptyText: {
+  noDataText: {
     color: "#6B7280",
     fontSize: 14,
     textAlign: "center",
+    padding: 20,
   },
 });
