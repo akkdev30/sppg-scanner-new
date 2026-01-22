@@ -134,7 +134,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // URL API
 const API_URL =
-  process.env.EXPO_PUBLIC_API_URL || "https://sppg-backend-new.vercel.app";
+  process.env.API_URL_SERVER || "https://sppg-backend-new.vercel.app";
 const API_BASE_URL = `${API_URL}/api`;
 
 interface AuthProviderProps {
