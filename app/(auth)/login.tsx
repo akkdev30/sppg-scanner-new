@@ -1,6 +1,5 @@
 // app/(auth)/login.tsx
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -22,7 +21,6 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const { login } = useAuth();
-  const router = useRouter();
 
   const handleLogin = async (): Promise<void> => {
     if (!username.trim() || !password.trim()) {
@@ -86,31 +84,6 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDemoLogin = (role: "owner" | "admin" | "pic") => {
-    const demoCredentials = {
-      owner: { username: "admin", password: "admin123" },
-      admin: { username: "admin_sppg", password: "admin123" },
-      pic: { username: "pic_sekolah", password: "pic123" },
-    };
-
-    setUsername(demoCredentials[role].username);
-    setPassword(demoCredentials[role].password);
-
-    Alert.alert(
-      "Demo Login",
-      `Username: ${demoCredentials[role].username}\nPassword: ${demoCredentials[role].password}\n\nKlik "Masuk" untuk login.`,
-      [{ text: "OK" }],
-    );
-  };
-
-  const handleForgotPassword = () => {
-    Alert.alert(
-      "Lupa Password?",
-      "Hubungi administrator sistem untuk reset password.",
-      [{ text: "OK" }],
-    );
   };
 
   return (
@@ -205,12 +178,6 @@ export default function LoginScreen() {
                   />
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                onPress={handleForgotPassword}
-                style={styles.forgotPassword}
-              >
-                <Text style={styles.forgotPasswordText}>Lupa Password?</Text>
-              </TouchableOpacity>
             </View>
 
             {/* Login Button */}
@@ -228,60 +195,6 @@ export default function LoginScreen() {
                 </>
               )}
             </TouchableOpacity>
-
-            {/* Demo Login Section */}
-            <View style={styles.demoSection}>
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>Login Demo</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <View style={styles.demoButtons}>
-                <TouchableOpacity
-                  style={[styles.demoButton, styles.ownerButton]}
-                  onPress={() => handleDemoLogin("owner")}
-                  disabled={loading}
-                >
-                  <Ionicons name="shield-outline" size={18} color="#7C3AED" />
-                  <Text style={styles.demoButtonText}>Owner</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.demoButton, styles.adminButton]}
-                  onPress={() => handleDemoLogin("admin")}
-                  disabled={loading}
-                >
-                  <Ionicons name="cog-outline" size={18} color="#059669" />
-                  <Text style={styles.demoButtonText}>Admin</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.demoButton, styles.picButton]}
-                  onPress={() => handleDemoLogin("pic")}
-                  disabled={loading}
-                >
-                  <Ionicons name="school-outline" size={18} color="#DC2626" />
-                  <Text style={styles.demoButtonText}>PIC</Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.demoNote}>
-                Gunakan demo login untuk mencoba fitur sesuai role
-              </Text>
-            </View>
-
-            {/* System Info */}
-            <View style={styles.systemInfo}>
-              <Text style={styles.systemInfoTitle}>SPPG System v2.1</Text>
-              <Text style={styles.systemInfoText}>
-                Sistem Monitoring Distribusi Makanan Sekolah
-              </Text>
-              <Text style={styles.systemInfoText}>
-                API:{" "}
-                {process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000"}
-              </Text>
-            </View>
           </View>
 
           {/* Footer */}
@@ -510,7 +423,7 @@ const styles = StyleSheet.create({
   systemInfo: {
     marginTop: 24,
     padding: 16,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#fff",
     borderRadius: 12,
     alignItems: "center",
   },

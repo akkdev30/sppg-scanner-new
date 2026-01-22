@@ -27,66 +27,93 @@ function RootLayoutNav() {
   useEffect(() => {
     if (!isNavigationReady || isLoading) return;
 
-    const currentSegment = segments[0];
+    const inAuthGroup = segments[0] === "(auth)";
+    const inOwnerGroup = segments[0] === "(owner)";
+    const inAdminGroup = segments[0] === "(admin)";
+    const inPicGroup = segments[0] === "(pic)";
+
     console.log("Navigation debug:", {
       isAuthenticated,
-      currentSegment,
+      segments,
       userRole: user?.role,
       isLoading,
+      groups: { inAuthGroup, inOwnerGroup, inAdminGroup, inPicGroup },
     });
 
-    // Jika belum login dan tidak berada di auth group
+    // 1. Jika belum login
     if (!isAuthenticated) {
-      if (currentSegment !== "(auth)") {
+      // Redirect ke login jika tidak berada di auth group
+      if (!inAuthGroup) {
         console.log("Redirecting to login: Not authenticated");
         router.replace("/(auth)/login");
       }
       return;
     }
 
-    // Jika sudah login
+    // 2. Jika sudah login
     if (isAuthenticated && user) {
-      // Jika sedang di auth group, redirect berdasarkan role
-      if (currentSegment === "(auth)") {
-        if (isOwner) {
-          console.log("Redirecting owner to dashboard");
-          router.replace("/(owner)/dashboard");
-        } else if (isAdmin) {
-          console.log("Redirecting admin to dashboard");
-          router.replace("/(admin)/dashboard");
-        } else if (isPic) {
-          console.log("Redirecting PIC to dashboard");
-          router.replace("/(pic)/dashboard");
-        }
+      // Redirect dari auth group ke dashboard sesuai role
+      if (inAuthGroup) {
+        console.log("User logged in, redirecting from auth to dashboard");
+        redirectToDashboard();
         return;
       }
 
-      // Validasi route berdasarkan role
-      const isValidRouteForRole = () => {
-        if (isOwner && currentSegment === "(owner)") return true;
-        if (isAdmin && currentSegment === "(admin)") return true;
-        if (isPic && currentSegment === "(pic)") return true;
+      // Validasi akses berdasarkan role
+      const hasValidAccess = validateRoleAccess(
+        inOwnerGroup,
+        inAdminGroup,
+        inPicGroup,
+      );
 
-        // Owner bisa akses semua
-        if (isOwner) return true;
-
-        return false;
-      };
-
-      // Redirect jika route tidak valid untuk role
-      if (!isValidRouteForRole()) {
+      if (!hasValidAccess) {
         console.log(`Invalid route for role ${user.role}, redirecting...`);
-
-        if (isOwner) {
-          router.replace("/(owner)/dashboard");
-        } else if (isAdmin) {
-          router.replace("/(admin)/dashboard");
-        } else if (isPic) {
-          router.replace("/(pic)/dashboard");
-        }
+        redirectToDashboard();
       }
     }
   }, [isAuthenticated, segments, isLoading, isNavigationReady, user]);
+
+  // Helper function untuk redirect ke dashboard sesuai role
+  const redirectToDashboard = () => {
+    if (isOwner) {
+      console.log("Redirecting to owner dashboard");
+      router.replace("/(owner)");
+    } else if (isAdmin) {
+      console.log("Redirecting to admin dashboard");
+      router.replace("/(admin)");
+    } else if (isPic) {
+      console.log("Redirecting to pic dashboard");
+      router.replace("/(pic)");
+    } else {
+      // Fallback ke login jika role tidak dikenali
+      console.log("Unknown role, redirecting to login");
+      router.replace("/(auth)/login");
+    }
+  };
+
+  // Helper function untuk validasi akses berdasarkan role
+  const validateRoleAccess = (
+    inOwnerGroup: boolean,
+    inAdminGroup: boolean,
+    inPicGroup: boolean,
+  ): boolean => {
+    // Owner bisa akses semua group
+    if (isOwner) {
+      return true;
+    }
+
+    // Admin hanya bisa akses admin group
+    if (isAdmin) {
+      return inAdminGroup;
+    }
+
+    // PIC hanya bisa akses pic group
+    if (isPic) {
+      return inPicGroup;
+    }
+
+    return false;
+  };
 
   // Show loading screen
   if (isLoading || !isNavigationReady) {
@@ -110,8 +137,13 @@ function RootLayoutNav() {
   return (
     <>
       <StatusBar style="light" backgroundColor="#2563EB" />
-      <Stack screenOptions={{ headerShown: false }}>
-        {/* Auth Group - Tidak butuh authentication */}
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      >
+        {/* Auth Group - Public access */}
         <Stack.Screen
           name="(auth)"
           options={{
@@ -120,7 +152,7 @@ function RootLayoutNav() {
           }}
         />
 
-        {/* Owner Group - Hanya untuk role owner */}
+        {/* Owner Group - Only for owner role */}
         <Stack.Screen
           name="(owner)"
           options={{
@@ -129,7 +161,7 @@ function RootLayoutNav() {
           }}
         />
 
-        {/* Admin Group - Hanya untuk role admin */}
+        {/* Admin Group - Only for admin role */}
         <Stack.Screen
           name="(admin)"
           options={{
@@ -138,7 +170,7 @@ function RootLayoutNav() {
           }}
         />
 
-        {/* PIC Group - Hanya untuk role pic */}
+        {/* PIC Group - Only for pic role */}
         <Stack.Screen
           name="(pic)"
           options={{
@@ -147,7 +179,7 @@ function RootLayoutNav() {
           }}
         />
 
-        {/* Common Screens - Bisa diakses semua role (jika dibutuhkan) */}
+        {/* Profile Screen - Accessible by all authenticated users */}
         <Stack.Screen
           name="profile"
           options={{
@@ -160,12 +192,25 @@ function RootLayoutNav() {
           }}
         />
 
-        {/* Error/NotFound Screen */}
+        {/* Settings Screen - Accessible by all authenticated users */}
         <Stack.Screen
-          name="error"
+          name="settings"
           options={{
             headerShown: true,
-            title: "Error",
+            title: "Pengaturan",
+            headerStyle: { backgroundColor: "#2563EB" },
+            headerTintColor: "#FFFFFF",
+            headerTitleStyle: { fontWeight: "bold" },
+            animation: "slide_from_right",
+          }}
+        />
+
+        {/* Error/NotFound Screen */}
+        <Stack.Screen
+          name="+not-found"
+          options={{
+            headerShown: true,
+            title: "Halaman Tidak Ditemukan",
             animation: "fade",
           }}
         />
