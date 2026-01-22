@@ -47,7 +47,7 @@ export default function UserManagementScreen() {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/auth/users`, {
+      const res = await fetch(`${API_URL}/dashboard/admin/users`, {
         headers: {
           Authorization: `Bearer ${await getToken()}`,
           "ngrok-skip-browser-warning": "true",
@@ -106,7 +106,7 @@ export default function UserManagementScreen() {
 
   const deleteUser = async (id: string) => {
     try {
-      const res = await fetch(`${API_URL}/auth/users/${id}`, {
+      const res = await fetch(`${API_URL}/dashboard/admin/users/${id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${await getToken()}`,
@@ -132,8 +132,8 @@ export default function UserManagementScreen() {
   const handleSubmit = async (formData: any) => {
     try {
       const endpoint = editItem
-        ? `${API_URL}/auth/users/${editItem.id}`
-        : `${API_URL}/auth/register`;
+        ? `${API_URL}/dashboard/admin/users/${editItem.id}`
+        : `${API_URL}/dashboard/admin/users`;
 
       let body: any = {};
 
@@ -299,6 +299,7 @@ export default function UserManagementScreen() {
 
       {/* Modals */}
       <UserModal
+        sppgList={sppgList}
         visible={modalVisible}
         editItem={editItem}
         onClose={() => setModalVisible(false)}
