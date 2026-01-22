@@ -198,7 +198,7 @@ export default function OwnerLayout() {
         }}
       />
       <Drawer.Screen
-        name="reports"
+        name="reports/index"
         options={{
           title: "Analytics Reports",
           drawerLabel: "Reports",
@@ -206,7 +206,7 @@ export default function OwnerLayout() {
         }}
       />
       <Drawer.Screen
-        name="users"
+        name="users/index"
         options={{
           title: "User Management",
           drawerLabel: "Users",
