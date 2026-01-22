@@ -19,354 +19,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
+import { getTableConfig } from "./config";
 
-// Column config type
-type TableColumn = {
-  key: string;
-  label: string;
-  width: number;
-  render?: (value: any, item?: any) => React.ReactNode;
-};
+// Import Text dari react-native untuk render function
 
-// Config untuk setiap tabel
-const TABLE_CONFIGS: {
-  [key: string]: {
-    displayName: string;
-    icon: string;
-    description: string;
-    searchableColumns: string[];
-    columns: TableColumn[];
-    filters?: {
-      [key: string]: {
-        label: string;
-        options: Array<{ value: any; label: string }>;
-      };
-    };
-  };
-} = {
-  users: {
-    displayName: "Users",
-    icon: "people",
-    description: "Data pengguna sistem dengan berbagai role",
-    searchableColumns: ["username", "full_name", "email", "phone_number"],
-    columns: [
-      { key: "username", label: "Username", width: 120 },
-      { key: "full_name", label: "Full Name", width: 150 },
-      { key: "email", label: "Email", width: 180 },
-      { key: "role", label: "Role", width: 100 },
-      {
-        key: "is_active",
-        label: "Status",
-        width: 80,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: value ? "#D1FAE5" : "#FEE2E2" },
-            ]}
-          >
-            {value ? "Active" : "Inactive"}
-          </Text>
-        ),
-      },
-      {
-        key: "created_at",
-        label: "Created",
-        width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-    ],
-    filters: {
-      role: {
-        label: "Role",
-        options: [
-          { value: "owner", label: "Owner" },
-          { value: "admin", label: "Admin" },
-          { value: "pic", label: "PIC" },
-        ],
-      },
-      is_active: {
-        label: "Status",
-        options: [
-          { value: true, label: "Active" },
-          { value: false, label: "Inactive" },
-        ],
-      },
-    },
-  },
-  sppg_masters: {
-    displayName: "SPPG Masters",
-    icon: "business",
-    description: "Data penyedia makanan (Supplier/Pusat Produksi)",
-    searchableColumns: ["sppg_code", "sppg_name", "email", "phone_number"],
-    columns: [
-      { key: "sppg_code", label: "SPPG Code", width: 120 },
-      { key: "sppg_name", label: "SPPG Name", width: 180 },
-      { key: "address", label: "Address", width: 200 },
-      { key: "phone_number", label: "Phone", width: 120 },
-      { key: "email", label: "Email", width: 180 },
-      {
-        key: "created_at",
-        label: "Created",
-        width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-    ],
-  },
-  schools: {
-    displayName: "Schools",
-    icon: "school",
-    description: "Data sekolah penerima distribusi",
-    searchableColumns: ["school_code", "name", "address"],
-    columns: [
-      { key: "school_code", label: "School Code", width: 120 },
-      { key: "name", label: "School Name", width: 200 },
-      { key: "address", label: "Address", width: 220 },
-      { key: "total_students", label: "Students", width: 100 },
-      {
-        key: "created_at",
-        label: "Created",
-        width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-    ],
-  },
-  menus: {
-    displayName: "Menus",
-    icon: "calendar",
-    description: "Jadwal produksi menu harian",
-    searchableColumns: ["menu_code", "menu_name", "notes"],
-    columns: [
-      { key: "menu_code", label: "Menu Code", width: 120 },
-      { key: "menu_name", label: "Menu Name", width: 180 },
-      {
-        key: "scheduled_date",
-        label: "Date",
-        width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-      {
-        key: "status",
-        label: "Status",
-        width: 100,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getStatusColor(value) },
-            ]}
-          >
-            {value}
-          </Text>
-        ),
-      },
-      { key: "production_portion", label: "Portion", width: 100 },
-      {
-        key: "created_at",
-        label: "Created",
-        width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-    ],
-    filters: {
-      status: {
-        label: "Status",
-        options: [
-          { value: "pending", label: "Pending" },
-          { value: "production", label: "Production" },
-          { value: "completed", label: "Completed" },
-        ],
-      },
-    },
-  },
-  school_menu_distribution: {
-    displayName: "Distribution",
-    icon: "car",
-    description: "Alokasi dan penerimaan menu ke sekolah",
-    searchableColumns: ["notes", "received_notes"],
-    columns: [
-      { key: "id", label: "ID", width: 80 },
-      { key: "school_name", label: "School", width: 150 },
-      { key: "menu_name", label: "Menu", width: 150 },
-      { key: "allocated_portion", label: "Allocated", width: 100 },
-      { key: "received_portion", label: "Received", width: 100 },
-      {
-        key: "received_status",
-        label: "Status",
-        width: 120,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getStatusColor(value) },
-            ]}
-          >
-            {value}
-          </Text>
-        ),
-      },
-      {
-        key: "received_at",
-        label: "Received At",
-        width: 140,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {value ? new Date(value).toLocaleDateString("id-ID") : "-"}
-          </Text>
-        ),
-      },
-    ],
-    filters: {
-      received_status: {
-        label: "Status",
-        options: [
-          { value: "pending", label: "Pending" },
-          { value: "accepted", label: "Accepted" },
-          { value: "rejected", label: "Rejected" },
-        ],
-      },
-    },
-  },
-  problem_reports: {
-    displayName: "Problem Reports",
-    icon: "warning",
-    description: "Laporan masalah dalam distribusi",
-    searchableColumns: ["problem_type", "description", "resolution_notes"],
-    columns: [
-      { key: "problem_type", label: "Type", width: 120 },
-      {
-        key: "status",
-        label: "Status",
-        width: 120,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getStatusColor(value) },
-            ]}
-          >
-            {value}
-          </Text>
-        ),
-      },
-      { key: "description", label: "Description", width: 200 },
-      {
-        key: "created_at",
-        label: "Reported",
-        width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-      {
-        key: "resolved_at",
-        label: "Resolved",
-        width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {value ? new Date(value).toLocaleDateString("id-ID") : "-"}
-          </Text>
-        ),
-      },
-    ],
-    filters: {
-      status: {
-        label: "Status",
-        options: [
-          { value: "pending", label: "Pending" },
-          { value: "investigating", label: "Investigating" },
-          { value: "resolved", label: "Resolved" },
-        ],
-      },
-    },
-  },
-  qr_codes: {
-    displayName: "QR Codes",
-    icon: "qr-code",
-    description: "Kode QR untuk verifikasi distribusi",
-    searchableColumns: ["qr_code_data"],
-    columns: [
-      { key: "qr_code_data", label: "QR Data", width: 180 },
-      {
-        key: "is_used",
-        label: "Used",
-        width: 80,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: value ? "#FEE2E2" : "#D1FAE5" },
-            ]}
-          >
-            {value ? "Yes" : "No"}
-          </Text>
-        ),
-      },
-      {
-        key: "generated_at",
-        label: "Generated",
-        width: 140,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-      {
-        key: "used_at",
-        label: "Used At",
-        width: 140,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {value ? new Date(value).toLocaleDateString("id-ID") : "-"}
-          </Text>
-        ),
-      },
-      {
-        key: "expires_at",
-        label: "Expires",
-        width: 140,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-    ],
-    filters: {
-      is_used: {
-        label: "Usage Status",
-        options: [
-          { value: true, label: "Used" },
-          { value: false, label: "Unused" },
-        ],
-      },
-    },
-  },
-};
-
+// Helper function untuk styling
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
     pending: "#FEF3C7",
@@ -376,6 +33,14 @@ const getStatusColor = (status: string) => {
     investigating: "#DBEAFE",
     production: "#E0F2FE",
     completed: "#D1FAE5",
+    approved: "#D1FAE5",
+    delivered: "#DBEAFE",
+    received: "#D1FAE5",
+    normal: "#D1FAE5",
+    special: "#DBEAFE",
+    emergency: "#FEE2E2",
+    damaged: "#FEE2E2",
+    shortage: "#FEF3C7",
     default: "#F3F4F6",
   };
   return colors[status?.toLowerCase()] || colors.default;
@@ -400,16 +65,68 @@ export default function TableMonitoringScreen() {
   const [expandedFilters, setExpandedFilters] = useState<
     Record<string, boolean>
   >({});
+  const [dynamicFilterOptions, setDynamicFilterOptions] = useState<
+    Record<string, Array<{ value: any; label: string }>>
+  >({});
 
-  const tableConfig = TABLE_CONFIGS[
-    table_name as keyof typeof TABLE_CONFIGS
-  ] || {
-    displayName: table_name,
-    icon: "grid",
-    description: "Data monitoring table",
-    searchableColumns: [],
-    columns: [],
-  };
+  const tableConfig = getTableConfig(table_name);
+
+  // Fetch dynamic filter options
+  useEffect(() => {
+    const fetchDynamicFilters = async () => {
+      if (!tableConfig.filters) return;
+
+      const dynamicFilters: Record<
+        string,
+        Array<{ value: any; label: string }>
+      > = {};
+
+      // Filter yang memerlukan data dinamis
+      const dynamicFilterKeys = Object.keys(tableConfig.filters).filter(
+        (key) =>
+          !tableConfig.filters?.[key].options ||
+          tableConfig.filters[key].options.length === 0,
+      );
+
+      if (dynamicFilterKeys.length === 0) return;
+
+      try {
+        const token = await getToken();
+        if (!token) return;
+
+        // Fetch options untuk setiap filter dinamis
+        for (const filterKey of dynamicFilterKeys) {
+          // Contoh: Untuk filter school_id, fetch daftar schools
+          if (filterKey.includes("school")) {
+            const response = await fetch(
+              `${process.env.API_URL_SERVER}/api/dashboard/owner/monitoring/filter-options?table=schools&field=name`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              },
+            );
+
+            if (response.ok) {
+              const result = await response.json();
+              dynamicFilters[filterKey] =
+                result.data?.map((item: any) => ({
+                  value: item.id,
+                  label: item.name || item.school_name || item.id,
+                })) || [];
+            }
+          }
+          // Tambahkan logika untuk filter dinamis lainnya...
+        }
+
+        setDynamicFilterOptions(dynamicFilters);
+      } catch (error) {
+        console.error("Error fetching dynamic filters:", error);
+      }
+    };
+
+    fetchDynamicFilters();
+  }, [table_name, tableConfig.filters]);
 
   const loadData = async (isRefresh = false) => {
     try {
@@ -425,7 +142,7 @@ export default function TableMonitoringScreen() {
         table_name: table_name,
       });
 
-      if (searchQuery) {
+      if (searchQuery && tableConfig.searchableColumns.length > 0) {
         params.append("search", searchQuery);
         params.append(
           "search_columns",
@@ -447,7 +164,11 @@ export default function TableMonitoringScreen() {
         },
       );
 
-      if (!response.ok) throw new Error("Failed to fetch data");
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("API Error Response:", errorText);
+        throw new Error(`Failed to fetch data: ${response.status}`);
+      }
 
       const result = await response.json();
 
@@ -521,9 +242,11 @@ export default function TableMonitoringScreen() {
           <Text style={styles.headerText}>{column.label}</Text>
         </View>
       ))}
-      <View style={[styles.headerCell, { width: 60 }]}>
-        <Text style={styles.headerText}>Actions</Text>
-      </View>
+      {(tableConfig.actions?.view || tableConfig.actions?.edit) && (
+        <View style={[styles.headerCell, { width: 60 }]}>
+          <Text style={styles.headerText}>Actions</Text>
+        </View>
+      )}
     </View>
   );
 
@@ -543,19 +266,35 @@ export default function TableMonitoringScreen() {
           )}
         </View>
       ))}
-      <View style={[styles.dataCell, { width: 60 }]}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => handleViewDetails(item)}
-        >
-          <Ionicons name="eye" size={16} color="#2563EB" />
-        </TouchableOpacity>
-      </View>
+      {(tableConfig.actions?.view || tableConfig.actions?.edit) && (
+        <View style={[styles.dataCell, { width: 60 }]}>
+          {tableConfig.actions?.view && (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => handleViewDetails(item)}
+            >
+              <Ionicons name="eye" size={16} color="#2563EB" />
+            </TouchableOpacity>
+          )}
+          {tableConfig.actions?.edit && (
+            <TouchableOpacity
+              style={[styles.actionButton, { marginLeft: 8 }]}
+              onPress={() => handleEditItem(item)}
+            >
+              <Ionicons name="create" size={16} color="#059669" />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
     </View>
   );
 
   const handleViewDetails = (item: any) => {
     router.push(`/(owner)/monitoring/${table_name}/${item.id}`);
+  };
+
+  const handleEditItem = (item: any) => {
+    router.push(`/(owner)/monitoring/${table_name}/${item.id}/edit`);
   };
 
   const handleExport = async () => {
@@ -590,7 +329,7 @@ export default function TableMonitoringScreen() {
         format: format,
       });
 
-      if (searchQuery) {
+      if (searchQuery && tableConfig.searchableColumns.length > 0) {
         params.append("search", searchQuery);
         params.append(
           "search_columns",
@@ -627,6 +366,14 @@ export default function TableMonitoringScreen() {
     }
   };
 
+  const getFilterOptions = (filterKey: string) => {
+    const staticOptions = tableConfig.filters?.[filterKey]?.options || [];
+    const dynamicOptions = dynamicFilterOptions[filterKey] || [];
+
+    // Gabungkan static dan dynamic options
+    return [...staticOptions, ...dynamicOptions];
+  };
+
   const renderFilterModal = () => (
     <Modal
       animationType="slide"
@@ -640,69 +387,83 @@ export default function TableMonitoringScreen() {
             <Text style={styles.modalTitle}>
               Filter {tableConfig.displayName}
             </Text>
-            <TouchableOpacity onPress={() => setShowFilterModal(false)}>
+            <TouchableOpacity
+              onPress={() => setShowFilterModal(false)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Ionicons name="close" size={24} color="#6B7280" />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalBody}>
+          <ScrollView
+            style={styles.modalBody}
+            showsVerticalScrollIndicator={false}
+          >
             {tableConfig.filters &&
             Object.keys(tableConfig.filters).length > 0 ? (
               Object.entries(tableConfig.filters).map(
-                ([filterKey, filterConfig]) => (
-                  <View key={filterKey} style={styles.filterGroup}>
-                    <TouchableOpacity
-                      style={styles.filterSectionHeader}
-                      onPress={() => toggleFilterExpansion(filterKey)}
-                    >
-                      <Text style={styles.filterLabel}>
-                        {filterConfig.label}
-                      </Text>
-                      <Ionicons
-                        name={
-                          expandedFilters[filterKey]
-                            ? "chevron-up"
-                            : "chevron-down"
-                        }
-                        size={20}
-                        color="#6B7280"
-                      />
-                    </TouchableOpacity>
+                ([filterKey, filterConfig]) => {
+                  const options = getFilterOptions(filterKey);
 
-                    {expandedFilters[filterKey] && (
-                      <View style={styles.filterOptions}>
-                        {filterConfig.options.map((option) => (
-                          <Pressable
-                            key={String(option.value)}
-                            style={[
-                              styles.filterOption,
-                              selectedFilters[filterKey] === option.value &&
-                                styles.filterOptionSelected,
-                            ]}
-                            onPress={() =>
-                              handleFilterChange(
-                                filterKey,
-                                selectedFilters[filterKey] === option.value
-                                  ? undefined
-                                  : option.value,
-                              )
-                            }
-                          >
-                            <Text
+                  if (options.length === 0) return null;
+
+                  return (
+                    <View key={filterKey} style={styles.filterGroup}>
+                      <TouchableOpacity
+                        style={styles.filterSectionHeader}
+                        onPress={() => toggleFilterExpansion(filterKey)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.filterLabel}>
+                          {filterConfig.label}
+                        </Text>
+                        <Ionicons
+                          name={
+                            expandedFilters[filterKey]
+                              ? "chevron-up"
+                              : "chevron-down"
+                          }
+                          size={20}
+                          color="#6B7280"
+                        />
+                      </TouchableOpacity>
+
+                      {expandedFilters[filterKey] && (
+                        <View style={styles.filterOptions}>
+                          {options.map((option) => (
+                            <Pressable
+                              key={String(option.value)}
                               style={[
-                                styles.filterOptionText,
+                                styles.filterOption,
                                 selectedFilters[filterKey] === option.value &&
-                                  styles.filterOptionTextSelected,
+                                  styles.filterOptionSelected,
                               ]}
+                              onPress={() =>
+                                handleFilterChange(
+                                  filterKey,
+                                  selectedFilters[filterKey] === option.value
+                                    ? undefined
+                                    : option.value,
+                                )
+                              }
                             >
-                              {option.label}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                ),
+                              <Text
+                                style={[
+                                  styles.filterOptionText,
+                                  selectedFilters[filterKey] === option.value &&
+                                    styles.filterOptionTextSelected,
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  );
+                },
               )
             ) : (
               <View style={styles.noFiltersContainer}>
@@ -719,6 +480,7 @@ export default function TableMonitoringScreen() {
                   <TouchableOpacity
                     style={styles.clearButton}
                     onPress={clearFilters}
+                    activeOpacity={0.7}
                   >
                     <Text style={styles.clearButtonText}>
                       Clear All Filters
@@ -728,6 +490,7 @@ export default function TableMonitoringScreen() {
                   <TouchableOpacity
                     style={styles.applyButton}
                     onPress={() => setShowFilterModal(false)}
+                    activeOpacity={0.7}
                   >
                     <Text style={styles.applyButtonText}>Apply Filters</Text>
                   </TouchableOpacity>
@@ -757,6 +520,7 @@ export default function TableMonitoringScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </TouchableOpacity>
@@ -773,9 +537,15 @@ export default function TableMonitoringScreen() {
           <Text style={styles.subtitle}>{tableConfig.description}</Text>
         </View>
 
-        <TouchableOpacity style={styles.exportButton} onPress={handleExport}>
-          <Ionicons name="download" size={20} color="#059669" />
-        </TouchableOpacity>
+        {tableConfig.actions?.export && (
+          <TouchableOpacity
+            style={styles.exportButton}
+            onPress={handleExport}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="download" size={20} color="#059669" />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Stats Bar */}
@@ -804,27 +574,34 @@ export default function TableMonitoringScreen() {
             value={searchQuery}
             onChangeText={handleSearch}
             placeholderTextColor="#9CA3AF"
+            clearButtonMode="while-editing"
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
+            <TouchableOpacity
+              onPress={() => setSearchQuery("")}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Ionicons name="close-circle" size={20} color="#9CA3AF" />
             </TouchableOpacity>
           )}
         </View>
 
-        <TouchableOpacity
-          style={styles.filterButton}
-          onPress={() => setShowFilterModal(true)}
-        >
-          <Ionicons name="filter" size={20} color="#6B7280" />
-          {Object.keys(selectedFilters).length > 0 && (
-            <View style={styles.filterBadge}>
-              <Text style={styles.filterBadgeText}>
-                {Object.keys(selectedFilters).length}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        {tableConfig.filters && Object.keys(tableConfig.filters).length > 0 && (
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setShowFilterModal(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="filter" size={20} color="#6B7280" />
+            {Object.keys(selectedFilters).length > 0 && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>
+                  {Object.keys(selectedFilters).length}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Active Filters */}
@@ -839,12 +616,16 @@ export default function TableMonitoringScreen() {
                 </Text>
                 <TouchableOpacity
                   onPress={() => handleFilterChange(key, undefined)}
+                  hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                 >
                   <Ionicons name="close" size={14} color="#6B7280" />
                 </TouchableOpacity>
               </View>
             ))}
-            <TouchableOpacity onPress={clearFilters}>
+            <TouchableOpacity
+              onPress={clearFilters}
+              hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+            >
               <Text style={styles.clearAllText}>Clear All</Text>
             </TouchableOpacity>
           </View>
@@ -864,6 +645,7 @@ export default function TableMonitoringScreen() {
               refreshing={refreshing}
               onRefresh={onRefresh}
               colors={["#2563EB"]}
+              tintColor="#2563EB"
             />
           }
           ListEmptyComponent={
@@ -881,6 +663,13 @@ export default function TableMonitoringScreen() {
               </Text>
             </View>
           }
+          ListHeaderComponent={
+            data.length > 0 ? (
+              <Text style={styles.resultCount}>
+                Showing {data.length} of {totalRecords} records
+              </Text>
+            ) : null
+          }
         />
       </View>
 
@@ -891,6 +680,7 @@ export default function TableMonitoringScreen() {
             style={[styles.pageButton, page === 1 && styles.pageButtonDisabled]}
             onPress={() => setPage(Math.max(1, page - 1))}
             disabled={page === 1}
+            activeOpacity={0.7}
           >
             <Ionicons
               name="chevron-back"
@@ -920,6 +710,7 @@ export default function TableMonitoringScreen() {
             ]}
             onPress={() => setPage(Math.min(totalPages, page + 1))}
             disabled={page === totalPages}
+            activeOpacity={0.7}
           >
             <Text
               style={[
@@ -938,10 +729,16 @@ export default function TableMonitoringScreen() {
         </View>
       )}
 
-      {/* Floating Action Button */}
-      <TouchableOpacity style={styles.fab} onPress={handleExport}>
-        <Ionicons name="download" size={24} color="white" />
-      </TouchableOpacity>
+      {/* Floating Action Button - hanya untuk export */}
+      {tableConfig.actions?.export && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={handleExport}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="download" size={24} color="white" />
+        </TouchableOpacity>
+      )}
 
       {renderFilterModal()}
     </SafeAreaView>
@@ -1105,6 +902,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "white",
   },
+  resultCount: {
+    fontSize: 12,
+    color: "#6B7280",
+    padding: 12,
+    backgroundColor: "#F9FAFB",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
   tableHeader: {
     flexDirection: "row",
     backgroundColor: "#F9FAFB",
@@ -1138,11 +943,12 @@ const styles = StyleSheet.create({
   },
   statusBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 4,
     borderRadius: 12,
     alignSelf: "flex-start",
     fontSize: 10,
     fontWeight: "500",
+    color: "#374151",
   },
   actionButton: {
     padding: 4,
@@ -1273,6 +1079,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
     borderWidth: 1,
     borderColor: "#E5E7EB",
+    minWidth: 80,
   },
   filterOptionSelected: {
     backgroundColor: "#2563EB",

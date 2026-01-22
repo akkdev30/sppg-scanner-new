@@ -1,4 +1,7 @@
+// app/(owner)/monitoring/config.ts
+
 import { StyleSheet } from "react-native";
+import { Text } from "react-native";
 
 // Column config type
 export type TableColumn = {
@@ -12,7 +15,7 @@ export type TableColumn = {
 export type TableFilter = {
   label: string;
   options: Array<{ value: any; label: string }>;
-  type?: 'select' | 'date' | 'boolean' | 'search';
+  type?: 'select' | 'date' | 'boolean' | 'search' | 'number';
 };
 
 // Config untuk setiap tabel
@@ -42,7 +45,8 @@ export const TABLE_CONFIGS: {
     columns: [
       { key: "username", label: "Username", width: 120 },
       { key: "full_name", label: "Full Name", width: 150 },
-      { key: "email", label: "Email", width: 180 },
+      { key: "email", label: "Email", width: 150 },
+      { key: "phone_number", label: "Phone", width: 120 },
       { 
         key: "role", 
         label: "Role", 
@@ -69,9 +73,9 @@ export const TABLE_CONFIGS: {
         ),
       },
       {
-        key: "last_login",
+        key: "last_login_at",
         label: "Last Login",
-        width: 140,
+        width: 120,
         render: (value: any) => (
           <Text style={styles.cellText}>
             {value ? new Date(value).toLocaleDateString("id-ID") : "Never"}
@@ -97,8 +101,6 @@ export const TABLE_CONFIGS: {
           { value: "owner", label: "Owner" },
           { value: "admin", label: "Admin" },
           { value: "pic", label: "PIC" },
-          { value: "school_pic", label: "School PIC" },
-          { value: "sppg_pic", label: "SPPG PIC" },
         ],
       },
       is_active: {
@@ -124,25 +126,10 @@ export const TABLE_CONFIGS: {
     searchableColumns: ["sppg_code", "sppg_name", "email", "phone_number", "address"],
     columns: [
       { key: "sppg_code", label: "SPPG Code", width: 120 },
-      { key: "sppg_name", label: "SPPG Name", width: 180 },
-      { key: "address", label: "Address", width: 200 },
+      { key: "sppg_name", label: "SPPG Name", width: 150 },
+      { key: "address", label: "Address", width: 180 },
       { key: "phone_number", label: "Phone", width: 120 },
-      { key: "email", label: "Email", width: 180 },
-      {
-        key: "is_active",
-        label: "Status",
-        width: 80,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: value ? "#D1FAE5" : "#FEE2E2" },
-            ]}
-          >
-            {value ? "Active" : "Inactive"}
-          </Text>
-        ),
-      },
+      { key: "email", label: "Email", width: 150 },
       {
         key: "created_at",
         label: "Created",
@@ -153,17 +140,18 @@ export const TABLE_CONFIGS: {
           </Text>
         ),
       },
-    ],
-    filters: {
-      is_active: {
-        label: "Status",
-        type: "boolean",
-        options: [
-          { value: true, label: "Active" },
-          { value: false, label: "Inactive" },
-        ],
+      {
+        key: "updated_at",
+        label: "Updated",
+        width: 120,
+        render: (value: any) => (
+          <Text style={styles.cellText}>
+            {new Date(value).toLocaleDateString("id-ID")}
+          </Text>
+        ),
       },
-    },
+    ],
+    filters: {},
     actions: {
       view: true,
       edit: true,
@@ -174,13 +162,55 @@ export const TABLE_CONFIGS: {
     displayName: "Schools",
     icon: "school",
     description: "Data sekolah penerima distribusi",
-    searchableColumns: ["school_code", "name", "address", "phone_number"],
+    searchableColumns: ["school_code", "name", "address"],
     columns: [
       { key: "school_code", label: "School Code", width: 120 },
-      { key: "name", label: "School Name", width: 200 },
-      { key: "address", label: "Address", width: 220 },
-      { key: "phone_number", label: "Phone", width: 120 },
+      { key: "name", label: "School Name", width: 180 },
+      { key: "address", label: "Address", width: 200 },
       { key: "total_students", label: "Students", width: 100 },
+      { 
+        key: "sppg_name", 
+        label: "SPPG", 
+        width: 120,
+        render: (value, item) => (
+          <Text style={styles.cellText}>{item.sppg_name || "N/A"}</Text>
+        ),
+      },
+      {
+        key: "created_at",
+        label: "Created",
+        width: 120,
+        render: (value: any) => (
+          <Text style={styles.cellText}>
+            {new Date(value).toLocaleDateString("id-ID")}
+          </Text>
+        ),
+      },
+    ],
+    filters: {
+      sppg_id: {
+        label: "SPPG",
+        type: "select",
+        options: [], // Akan diisi dinamis
+      },
+    },
+    actions: {
+      view: true,
+      edit: true,
+      export: true,
+    },
+  },
+  school_pics: {
+    displayName: "School PICs",
+    icon: "person",
+    description: "Penanggung jawab sekolah",
+    searchableColumns: ["name", "email", "phone_number", "position"],
+    columns: [
+      { key: "name", label: "Name", width: 150 },
+      { key: "school_name", label: "School", width: 150 },
+      { key: "position", label: "Position", width: 120 },
+      { key: "phone_number", label: "Phone", width: 120 },
+      { key: "email", label: "Email", width: 150 },
       {
         key: "is_active",
         label: "Status",
@@ -215,6 +245,92 @@ export const TABLE_CONFIGS: {
           { value: true, label: "Active" },
           { value: false, label: "Inactive" },
         ],
+      },
+      school_id: {
+        label: "School",
+        type: "select",
+        options: [], // Akan diisi dinamis
+      },
+    },
+    actions: {
+      view: true,
+      edit: true,
+      export: true,
+    },
+  },
+  menu_categories: {
+    displayName: "Menu Categories",
+    icon: "fast-food",
+    description: "Kategori menu makanan",
+    searchableColumns: ["category_code", "category_name", "description"],
+    columns: [
+      { key: "category_code", label: "Category Code", width: 120 },
+      { key: "category_name", label: "Category Name", width: 150 },
+      { key: "description", label: "Description", width: 200 },
+      {
+        key: "created_at",
+        label: "Created",
+        width: 120,
+        render: (value: any) => (
+          <Text style={styles.cellText}>
+            {new Date(value).toLocaleDateString("id-ID")}
+          </Text>
+        ),
+      },
+      {
+        key: "updated_at",
+        label: "Updated",
+        width: 120,
+        render: (value: any) => (
+          <Text style={styles.cellText}>
+            {new Date(value).toLocaleDateString("id-ID")}
+          </Text>
+        ),
+      },
+    ],
+    filters: {},
+    actions: {
+      view: true,
+      edit: true,
+      export: true,
+    },
+  },
+  menu_items: {
+    displayName: "Menu Items",
+    icon: "restaurant",
+    description: "Item menu makanan",
+    searchableColumns: ["item_code", "item_name", "description"],
+    columns: [
+      { key: "item_code", label: "Item Code", width: 120 },
+      { key: "item_name", label: "Item Name", width: 180 },
+      { key: "category_name", label: "Category", width: 120 },
+      { key: "description", label: "Description", width: 200 },
+      {
+        key: "created_at",
+        label: "Created",
+        width: 120,
+        render: (value: any) => (
+          <Text style={styles.cellText}>
+            {new Date(value).toLocaleDateString("id-ID")}
+          </Text>
+        ),
+      },
+      {
+        key: "updated_at",
+        label: "Updated",
+        width: 120,
+        render: (value: any) => (
+          <Text style={styles.cellText}>
+            {new Date(value).toLocaleDateString("id-ID")}
+          </Text>
+        ),
+      },
+    ],
+    filters: {
+      category_id: {
+        label: "Category",
+        type: "select",
+        options: [], // Akan diisi dinamis
       },
     },
     actions: {
@@ -227,13 +343,14 @@ export const TABLE_CONFIGS: {
     displayName: "Menus",
     icon: "calendar",
     description: "Jadwal produksi menu harian",
-    searchableColumns: ["menu_code", "menu_name", "notes", "description"],
+    searchableColumns: ["menu_code", "menu_name", "notes"],
     columns: [
       { key: "menu_code", label: "Menu Code", width: 120 },
-      { key: "menu_name", label: "Menu Name", width: 180 },
+      { key: "menu_name", label: "Menu Name", width: 150 },
+      { key: "sppg_name", label: "SPPG", width: 120 },
       {
         key: "scheduled_date",
-        label: "Date",
+        label: "Scheduled Date",
         width: 120,
         render: (value: any) => (
           <Text style={styles.cellText}>
@@ -241,6 +358,17 @@ export const TABLE_CONFIGS: {
           </Text>
         ),
       },
+      {
+        key: "production_time",
+        label: "Production Time",
+        width: 120,
+        render: (value: any) => (
+          <Text style={styles.cellText}>
+            {value ? new Date(value).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) : "-"}
+          </Text>
+        ),
+      },
+      { key: "production_portion", label: "Portion", width: 100 },
       {
         key: "status",
         label: "Status",
@@ -252,12 +380,25 @@ export const TABLE_CONFIGS: {
               { backgroundColor: getMenuStatusColor(value) },
             ]}
           >
-            {value?.toUpperCase()}
+            {value?.toUpperCase() || "PENDING"}
           </Text>
         ),
       },
-      { key: "production_portion", label: "Portion", width: 100 },
-      { key: "sppg_name", label: "SPPG", width: 120 },
+      {
+        key: "condition",
+        label: "Condition",
+        width: 100,
+        render: (value: any) => (
+          <Text
+            style={[
+              styles.statusBadge,
+              { backgroundColor: getMenuConditionColor(value) },
+            ]}
+          >
+            {value?.toUpperCase() || "NORMAL"}
+          </Text>
+        ),
+      },
       {
         key: "created_at",
         label: "Created",
@@ -274,22 +415,80 @@ export const TABLE_CONFIGS: {
         label: "Status",
         type: "select",
         options: [
-          { value: "draft", label: "Draft" },
-          { value: "scheduled", label: "Scheduled" },
+          { value: "pending", label: "Pending" },
+          { value: "approved", label: "Approved" },
+          { value: "rejected", label: "Rejected" },
           { value: "production", label: "Production" },
           { value: "completed", label: "Completed" },
-          { value: "cancelled", label: "Cancelled" },
+        ],
+      },
+      condition: {
+        label: "Condition",
+        type: "select",
+        options: [
+          { value: "normal", label: "Normal" },
+          { value: "special", label: "Special" },
+          { value: "emergency", label: "Emergency" },
         ],
       },
       sppg_id: {
         label: "SPPG",
         type: "select",
-        options: [], // Will be populated dynamically
+        options: [], // Akan diisi dinamis
       },
       scheduled_date: {
         label: "Date Range",
         type: "date",
         options: [],
+      },
+    },
+    actions: {
+      view: true,
+      edit: true,
+      export: true,
+    },
+  },
+  menu_details: {
+    displayName: "Menu Details",
+    icon: "list",
+    description: "Detail komposisi menu",
+    searchableColumns: ["menu_name", "item_name"],
+    columns: [
+      { key: "menu_name", label: "Menu", width: 150 },
+      { key: "item_name", label: "Item", width: 150 },
+      { key: "quantity", label: "Quantity", width: 80 },
+      { key: "unit", label: "Unit", width: 80 },
+      {
+        key: "created_at",
+        label: "Created",
+        width: 120,
+        render: (value: any) => (
+          <Text style={styles.cellText}>
+            {new Date(value).toLocaleDateString("id-ID")}
+          </Text>
+        ),
+      },
+      {
+        key: "updated_at",
+        label: "Updated",
+        width: 120,
+        render: (value: any) => (
+          <Text style={styles.cellText}>
+            {new Date(value).toLocaleDateString("id-ID")}
+          </Text>
+        ),
+      },
+    ],
+    filters: {
+      menu_id: {
+        label: "Menu",
+        type: "select",
+        options: [], // Akan diisi dinamis
+      },
+      menu_item_id: {
+        label: "Menu Item",
+        type: "select",
+        options: [], // Akan diisi dinamis
       },
     },
     actions: {
@@ -301,17 +500,17 @@ export const TABLE_CONFIGS: {
     displayName: "Distribution",
     icon: "car",
     description: "Alokasi dan penerimaan menu ke sekolah",
-    searchableColumns: ["notes", "received_notes", "school_name", "menu_name"],
+    searchableColumns: ["menu_name", "school_name", "received_notes"],
     columns: [
       { key: "id", label: "ID", width: 80 },
-      { key: "school_name", label: "School", width: 150 },
       { key: "menu_name", label: "Menu", width: 150 },
+      { key: "school_name", label: "School", width: 150 },
       { key: "allocated_portion", label: "Allocated", width: 100 },
       { key: "received_portion", label: "Received", width: 100 },
       {
         key: "received_status",
         label: "Status",
-        width: 120,
+        width: 100,
         render: (value: any) => (
           <Text
             style={[
@@ -319,7 +518,22 @@ export const TABLE_CONFIGS: {
               { backgroundColor: getDistributionStatusColor(value) },
             ]}
           >
-            {value?.toUpperCase()}
+            {value?.toUpperCase() || "PENDING"}
+          </Text>
+        ),
+      },
+      {
+        key: "received_condition",
+        label: "Condition",
+        width: 100,
+        render: (value: any) => (
+          <Text
+            style={[
+              styles.statusBadge,
+              { backgroundColor: getDistributionConditionColor(value) },
+            ]}
+          >
+            {value?.toUpperCase() || "NORMAL"}
           </Text>
         ),
       },
@@ -350,21 +564,29 @@ export const TABLE_CONFIGS: {
         type: "select",
         options: [
           { value: "pending", label: "Pending" },
-          { value: "allocated", label: "Allocated" },
           { value: "delivered", label: "Delivered" },
           { value: "received", label: "Received" },
           { value: "rejected", label: "Rejected" },
         ],
       },
-      school_id: {
-        label: "School",
+      received_condition: {
+        label: "Condition",
         type: "select",
-        options: [], // Will be populated dynamically
+        options: [
+          { value: "normal", label: "Normal" },
+          { value: "damaged", label: "Damaged" },
+          { value: "shortage", label: "Shortage" },
+        ],
       },
       menu_id: {
         label: "Menu",
         type: "select",
-        options: [], // Will be populated dynamically
+        options: [], // Akan diisi dinamis
+      },
+      school_id: {
+        label: "School",
+        type: "select",
+        options: [], // Akan diisi dinamis
       },
     },
     actions: {
@@ -376,7 +598,7 @@ export const TABLE_CONFIGS: {
     displayName: "Problem Reports",
     icon: "warning",
     description: "Laporan masalah dalam distribusi",
-    searchableColumns: ["problem_type", "description", "resolution_notes", "reported_by"],
+    searchableColumns: ["problem_type", "description", "resolution_notes", "reported_by_name"],
     columns: [
       { key: "problem_type", label: "Type", width: 120 },
       {
@@ -395,7 +617,7 @@ export const TABLE_CONFIGS: {
         ),
       },
       { key: "description", label: "Description", width: 200 },
-      { key: "reported_by", label: "Reported By", width: 120 },
+      { key: "reported_by_name", label: "Reported By", width: 120 },
       {
         key: "created_at",
         label: "Reported",
@@ -425,16 +647,16 @@ export const TABLE_CONFIGS: {
           { value: "pending", label: "Pending" },
           { value: "investigating", label: "Investigating" },
           { value: "resolved", label: "Resolved" },
-          { value: "closed", label: "Closed" },
+          { value: "rejected", label: "Rejected" },
         ],
       },
       problem_type: {
         label: "Problem Type",
         type: "select",
         options: [
-          { value: "quality", label: "Quality Issue" },
-          { value: "quantity", label: "Quantity Issue" },
-          { value: "delivery", label: "Delivery Issue" },
+          { value: "quality", label: "Quality" },
+          { value: "quantity", label: "Quantity" },
+          { value: "delivery", label: "Delivery" },
           { value: "other", label: "Other" },
         ],
       },
@@ -452,8 +674,7 @@ export const TABLE_CONFIGS: {
     searchableColumns: ["qr_code_data", "reference_type", "reference_id"],
     columns: [
       { key: "qr_code_data", label: "QR Data", width: 180 },
-      { key: "reference_type", label: "Reference Type", width: 120 },
-      { key: "reference_id", label: "Reference ID", width: 100 },
+      { key: "school_menu_distribution_id", label: "Distribution ID", width: 100 },
       {
         key: "is_used",
         label: "Used",
@@ -495,7 +716,7 @@ export const TABLE_CONFIGS: {
         width: 140,
         render: (value: any) => (
           <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
+            {value ? new Date(value).toLocaleDateString("id-ID") : "-"}
           </Text>
         ),
       },
@@ -509,51 +730,34 @@ export const TABLE_CONFIGS: {
           { value: false, label: "Unused" },
         ],
       },
-      reference_type: {
-        label: "Reference Type",
-        type: "select",
-        options: [
-          { value: "distribution", label: "Distribution" },
-          { value: "menu", label: "Menu" },
-          { value: "school", label: "School" },
-        ],
-      },
     },
     actions: {
       view: true,
       export: true,
     },
   },
-  // Tabel tambahan yang mungkin dibutuhkan
-  menu_items: {
-    displayName: "Menu Items",
-    icon: "restaurant",
-    description: "Item menu makanan yang tersedia",
-    searchableColumns: ["item_name", "description", "category"],
+  scan_logs: {
+    displayName: "Scan Logs",
+    icon: "scan",
+    description: "Log pemindaian QR code",
+    searchableColumns: ["scanned_by_name", "device_info"],
     columns: [
-      { key: "item_code", label: "Item Code", width: 120 },
-      { key: "item_name", label: "Item Name", width: 180 },
-      { key: "category", label: "Category", width: 120 },
-      { key: "unit", label: "Unit", width: 80 },
+      { key: "qr_code_data", label: "QR Code", width: 150 },
+      { key: "scanned_by_name", label: "Scanned By", width: 120 },
       {
-        key: "is_active",
-        label: "Status",
-        width: 80,
+        key: "scanned_at",
+        label: "Scanned At",
+        width: 140,
         render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: value ? "#D1FAE5" : "#FEE2E2" },
-            ]}
-          >
-            {value ? "Active" : "Inactive"}
+          <Text style={styles.cellText}>
+            {new Date(value).toLocaleString("id-ID")}
           </Text>
         ),
       },
       {
         key: "created_at",
         label: "Created",
-        width: 120,
+        width: 140,
         render: (value: any) => (
           <Text style={styles.cellText}>
             {new Date(value).toLocaleDateString("id-ID")}
@@ -562,23 +766,14 @@ export const TABLE_CONFIGS: {
       },
     ],
     filters: {
-      is_active: {
-        label: "Status",
-        type: "boolean",
-        options: [
-          { value: true, label: "Active" },
-          { value: false, label: "Inactive" },
-        ],
-      },
-      category: {
-        label: "Category",
-        type: "select",
-        options: [], // Will be populated dynamically
+      date_range: {
+        label: "Date Range",
+        type: "date",
+        options: [],
       },
     },
     actions: {
       view: true,
-      edit: true,
       export: true,
     },
   },
@@ -586,11 +781,11 @@ export const TABLE_CONFIGS: {
     displayName: "Activity Logs",
     icon: "analytics",
     description: "Log aktivitas pengguna dalam sistem",
-    searchableColumns: ["action", "description", "user_name", "ip_address"],
+    searchableColumns: ["activity_type", "description", "user_name", "ip_address"],
     columns: [
-      { key: "action", label: "Action", width: 120 },
-      { key: "description", label: "Description", width: 200 },
       { key: "user_name", label: "User", width: 120 },
+      { key: "activity_type", label: "Activity Type", width: 120 },
+      { key: "description", label: "Description", width: 200 },
       { key: "ip_address", label: "IP Address", width: 120 },
       {
         key: "created_at",
@@ -604,8 +799,8 @@ export const TABLE_CONFIGS: {
       },
     ],
     filters: {
-      action: {
-        label: "Action Type",
+      activity_type: {
+        label: "Activity Type",
         type: "select",
         options: [
           { value: "login", label: "Login" },
@@ -619,7 +814,61 @@ export const TABLE_CONFIGS: {
       user_id: {
         label: "User",
         type: "select",
-        options: [], // Will be populated dynamically
+        options: [], // Akan diisi dinamis
+      },
+      date_range: {
+        label: "Date Range",
+        type: "date",
+        options: [],
+      },
+    },
+    actions: {
+      view: true,
+      export: true,
+    },
+  },
+  monitoring_logs: {
+    displayName: "Monitoring Logs",
+    icon: "shield-checkmark",
+    description: "Log perubahan data",
+    searchableColumns: ["table_name", "action_type", "performed_by_name"],
+    columns: [
+      { key: "action_type", label: "Action", width: 100 },
+      { key: "table_name", label: "Table", width: 120 },
+      { key: "record_id", label: "Record ID", width: 100 },
+      { key: "performed_by_name", label: "Performed By", width: 120 },
+      { key: "ip_address", label: "IP Address", width: 120 },
+      {
+        key: "performed_at",
+        label: "Timestamp",
+        width: 160,
+        render: (value: any) => (
+          <Text style={styles.cellText}>
+            {new Date(value).toLocaleString("id-ID")}
+          </Text>
+        ),
+      },
+    ],
+    filters: {
+      action_type: {
+        label: "Action Type",
+        type: "select",
+        options: [
+          { value: "INSERT", label: "Create" },
+          { value: "UPDATE", label: "Update" },
+          { value: "DELETE", label: "Delete" },
+        ],
+      },
+      table_name: {
+        label: "Table Name",
+        type: "select",
+        options: [
+          { value: "users", label: "Users" },
+          { value: "sppg_masters", label: "SPPG Masters" },
+          { value: "schools", label: "Schools" },
+          { value: "menus", label: "Menus" },
+          { value: "school_menu_distribution", label: "Distribution" },
+        ],
       },
       date_range: {
         label: "Date Range",
@@ -640,32 +889,47 @@ const getRoleColor = (role: string) => {
     owner: "#8B5CF6",
     admin: "#3B82F6",
     pic: "#10B981",
-    school_pic: "#F59E0B",
-    sppg_pic: "#EF4444",
   };
   return colors[role?.toLowerCase()] || "#6B7280";
 };
 
 const getMenuStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    draft: "#F3F4F6",
-    scheduled: "#DBEAFE",
-    production: "#E0F2FE",
-    completed: "#D1FAE5",
-    cancelled: "#FEE2E2",
+    pending: "#FEF3C7",
+    approved: "#D1FAE5",
+    rejected: "#FEE2E2",
+    production: "#DBEAFE",
+    completed: "#BBF7D0",
   };
   return colors[status?.toLowerCase()] || "#F3F4F6";
+};
+
+const getMenuConditionColor = (condition: string) => {
+  const colors: Record<string, string> = {
+    normal: "#D1FAE5",
+    special: "#DBEAFE",
+    emergency: "#FEE2E2",
+  };
+  return colors[condition?.toLowerCase()] || "#F3F4F6";
 };
 
 const getDistributionStatusColor = (status: string) => {
   const colors: Record<string, string> = {
     pending: "#FEF3C7",
-    allocated: "#DBEAFE",
-    delivered: "#E0F2FE",
+    delivered: "#DBEAFE",
     received: "#D1FAE5",
     rejected: "#FEE2E2",
   };
   return colors[status?.toLowerCase()] || "#F3F4F6";
+};
+
+const getDistributionConditionColor = (condition: string) => {
+  const colors: Record<string, string> = {
+    normal: "#D1FAE5",
+    damaged: "#FEE2E2",
+    shortage: "#FEF3C7",
+  };
+  return colors[condition?.toLowerCase()] || "#F3F4F6";
 };
 
 const getReportStatusColor = (status: string) => {
@@ -673,7 +937,7 @@ const getReportStatusColor = (status: string) => {
     pending: "#FEF3C7",
     investigating: "#DBEAFE",
     resolved: "#D1FAE5",
-    closed: "#E5E7EB",
+    rejected: "#FEE2E2",
   };
   return colors[status?.toLowerCase()] || "#F3F4F6";
 };
@@ -682,7 +946,9 @@ const getReportStatusColor = (status: string) => {
 export const StatusColors = {
   getRoleColor,
   getMenuStatusColor,
+  getMenuConditionColor,
   getDistributionStatusColor,
+  getDistributionConditionColor,
   getReportStatusColor,
 };
 
@@ -711,9 +977,6 @@ const styles = StyleSheet.create({
     color: "#374151",
   },
 });
-
-// Untuk import di komponen React, kita perlu membuat Text component tersedia
-import { Text } from "react-native";
 
 // Export default config
 export default TABLE_CONFIGS;
@@ -744,12 +1007,17 @@ const getTableColor = (tableId: string) => {
     users: "#3B82F6",
     sppg_masters: "#10B981",
     schools: "#8B5CF6",
-    menus: "#F59E0B",
+    school_pics: "#F59E0B",
+    menu_categories: "#EC4899",
+    menu_items: "#14B8A6",
+    menus: "#F97316",
+    menu_details: "#8B5CF6",
     school_menu_distribution: "#EF4444",
     problem_reports: "#DC2626",
     qr_codes: "#6366F1",
-    menu_items: "#EC4899",
-    activity_logs: "#14B8A6",
+    scan_logs: "#06B6D4",
+    activity_logs: "#0EA5E9",
+    monitoring_logs: "#84CC16",
   };
   return colors[tableId] || "#6B7280";
 };
