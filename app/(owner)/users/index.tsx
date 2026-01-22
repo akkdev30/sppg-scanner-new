@@ -19,8 +19,7 @@ import StatCard from "../../../components/admin/StatCard";
 import UserFilter from "../../../components/owner/users/UserFilter";
 import { useAuth } from "../../../context/AuthContext";
 
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000/api";
+const API_BASE_URL = process.env.API_URL_SERVER || "http://localhost:3000/api";
 
 /* =======================
    TYPES

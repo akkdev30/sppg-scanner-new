@@ -1,3 +1,5 @@
+// components/admin/UserList.tsx
+
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
@@ -8,20 +10,29 @@ import {
   View,
 } from "react-native";
 
+// Update interface sesuai dengan database
 interface UserItem {
   id: string;
   username: string;
-  role: "admin" | "pic";
+  role: "admin" | "pic" | "operator" | "super_admin";
+  full_name?: string;
+  email?: string;
+  phone_number?: string;
+  school_pic_id?: string;
+  school_pic_name?: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
   last_login_at?: string;
+  created_by?: string;
 }
 
 interface UserListProps {
   userList: UserItem[];
   currentUserId: string;
-  onEdit: (item: UserItem) => void;
-  onDelete: (id: string, username: string) => void;
+  onEdit: (id: string, item: UserItem) => void;
+  onDeactivate: (id: string, username: string) => void;
+  onActivate: (id: string, username: string) => void;
   onViewDetail: (item: UserItem) => void;
 }
 
@@ -29,29 +40,69 @@ export default function UserList({
   userList,
   currentUserId,
   onEdit,
-  onDelete,
+  onDeactivate,
+  onActivate,
   onViewDetail,
 }: UserListProps) {
+  // Helper functions
   const getRoleIcon = (role: string) => {
-    return role === "admin" ? "shield-checkmark" : "person";
+    switch (role) {
+      case "admin":
+        return "shield-checkmark";
+      case "super_admin":
+        return "shield";
+      case "pic":
+        return "school";
+      case "operator":
+        return "construct";
+      default:
+        return "person";
+    }
   };
 
   const getRoleColor = (role: string) => {
-    return role === "admin" ? "#2563EB" : "#7C3AED";
+    switch (role) {
+      case "admin":
+        return "#2563EB";
+      case "super_admin":
+        return "#DC2626";
+      case "pic":
+        return "#7C3AED";
+      case "operator":
+        return "#059669";
+      default:
+        return "#6B7280";
+    }
   };
 
   const getRoleBgColor = (role: string) => {
-    return role === "admin" ? "#EFF6FF" : "#F3E8FF";
+    switch (role) {
+      case "admin":
+        return "#EFF6FF";
+      case "super_admin":
+        return "#FEF2F2";
+      case "pic":
+        return "#F3E8FF";
+      case "operator":
+        return "#D1FAE5";
+      default:
+        return "#F3F4F6";
+    }
   };
 
-  const getStatusColor = (lastLogin?: string) => {
-    if (!lastLogin) return "#9CA3AF";
-    const daysSinceLogin = Math.floor(
-      (Date.now() - new Date(lastLogin).getTime()) / (1000 * 60 * 60 * 24),
-    );
-    if (daysSinceLogin <= 1) return "#10B981";
-    if (daysSinceLogin <= 7) return "#F59E0B";
-    return "#EF4444";
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "Admin";
+      case "super_admin":
+        return "Super Admin";
+      case "pic":
+        return "PIC Sekolah";
+      case "operator":
+        return "Operator SPPG";
+      default:
+        return "User";
+    }
   };
 
   const getActivityStatus = (lastLogin?: string) => {
@@ -62,7 +113,26 @@ export default function UserList({
     if (daysSinceLogin === 0) return "Aktif hari ini";
     if (daysSinceLogin === 1) return "Aktif kemarin";
     if (daysSinceLogin <= 7) return `Aktif ${daysSinceLogin} hari lalu`;
-    return "Tidak aktif";
+    return "Sudah lama tidak aktif";
+  };
+
+  const getActivityColor = (lastLogin?: string) => {
+    if (!lastLogin) return "#9CA3AF";
+    const daysSinceLogin = Math.floor(
+      (Date.now() - new Date(lastLogin).getTime()) / (1000 * 60 * 60 * 24),
+    );
+    if (daysSinceLogin <= 1) return "#10B981";
+    if (daysSinceLogin <= 7) return "#F59E0B";
+    return "#EF4444";
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleDateString("id-ID", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
   };
 
   const renderUserCard = ({ item }: { item: UserItem }) => {
@@ -70,16 +140,23 @@ export default function UserList({
 
     return (
       <TouchableOpacity
-        style={[styles.userCard, isCurrentUser && styles.currentUserCard]}
+        style={[
+          styles.userCard,
+          isCurrentUser && styles.currentUserCard,
+          !item.is_active && styles.inactiveCard,
+        ]}
         onPress={() => onViewDetail(item)}
         activeOpacity={0.7}
       >
+        {/* Card Header */}
         <View style={styles.cardHeader}>
+          {/* Avatar/Icon */}
           <View style={styles.avatarContainer}>
             <View
               style={[
                 styles.avatar,
                 { backgroundColor: getRoleBgColor(item.role) },
+                !item.is_active && styles.inactiveAvatar,
               ]}
             >
               <Ionicons
@@ -88,16 +165,37 @@ export default function UserList({
                 color={getRoleColor(item.role)}
               />
             </View>
+
+            {/* Status Badge */}
+            {!item.is_active && (
+              <View style={styles.inactiveStatusBadge}>
+                <Text style={styles.inactiveStatusText}>NONAKTIF</Text>
+              </View>
+            )}
             {isCurrentUser && (
               <View style={styles.currentUserBadge}>
-                <Text style={styles.currentUserText}>Anda</Text>
+                <Text style={styles.currentUserText}>ANDA</Text>
               </View>
             )}
           </View>
 
+          {/* User Info */}
           <View style={styles.userInfo}>
             <View style={styles.userNameRow}>
-              <Text style={styles.username}>{item.username}</Text>
+              <View style={styles.nameContainer}>
+                <Text
+                  style={[
+                    styles.username,
+                    !item.is_active && styles.inactiveText,
+                  ]}
+                >
+                  {item.username}
+                </Text>
+                {item.full_name && (
+                  <Text style={styles.fullName}>{item.full_name}</Text>
+                )}
+              </View>
+
               <View
                 style={[
                   styles.roleBadge,
@@ -107,57 +205,123 @@ export default function UserList({
                 <Text
                   style={[styles.roleText, { color: getRoleColor(item.role) }]}
                 >
-                  {item.role === "admin" ? "Admin" : "PIC"}
+                  {getRoleLabel(item.role)}
                 </Text>
               </View>
             </View>
 
+            {/* Contact Info */}
+            <View style={styles.contactInfo}>
+              {item.email && (
+                <View style={styles.contactItem}>
+                  <Ionicons name="mail-outline" size={12} color="#6B7280" />
+                  <Text style={styles.contactText} numberOfLines={1}>
+                    {item.email}
+                  </Text>
+                </View>
+              )}
+              {item.phone_number && (
+                <View style={styles.contactItem}>
+                  <Ionicons name="call-outline" size={12} color="#6B7280" />
+                  <Text style={styles.contactText}>{item.phone_number}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Activity Status */}
             <View style={styles.statusRow}>
               <View
                 style={[
                   styles.statusDot,
-                  { backgroundColor: getStatusColor(item.last_login_at) },
+                  { backgroundColor: getActivityColor(item.last_login_at) },
                 ]}
               />
               <Text style={styles.statusText}>
                 {getActivityStatus(item.last_login_at)}
               </Text>
+              <Text style={styles.lastLoginText}>
+                • Login: {formatDate(item.last_login_at)}
+              </Text>
             </View>
           </View>
         </View>
 
-        <View style={styles.cardDivider} />
-
-        <View style={styles.cardFooter}>
-          <View style={styles.infoItem}>
-            <Ionicons name="calendar-outline" size={14} color="#6B7280" />
-            <Text style={styles.infoText}>
-              Dibuat {new Date(item.created_at).toLocaleDateString("id-ID")}
+        {/* School PIC Info (if applicable) */}
+        {item.role === "pic" && item.school_pic_name && (
+          <View style={styles.schoolInfo}>
+            <Ionicons name="school-outline" size={14} color="#6B7280" />
+            <Text style={styles.schoolText} numberOfLines={1}>
+              {item.school_pic_name}
             </Text>
           </View>
+        )}
 
+        <View style={styles.cardDivider} />
+
+        {/* Card Footer */}
+        <View style={styles.cardFooter}>
+          <View style={styles.footerInfo}>
+            <View style={styles.infoItem}>
+              <Ionicons name="calendar-outline" size={12} color="#6B7280" />
+              <Text style={styles.infoText}>
+                Dibuat: {formatDate(item.created_at)}
+              </Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Ionicons name="time-outline" size={12} color="#6B7280" />
+              <Text style={styles.infoText}>
+                Diupdate: {formatDate(item.updated_at)}
+              </Text>
+            </View>
+          </View>
+
+          {/* Action Buttons */}
           <View style={styles.cardActions}>
+            {/* Detail Button */}
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => onEdit(item)}
+              onPress={() => onViewDetail(item)}
             >
-              <Ionicons name="create-outline" size={20} color="#2563EB" />
+              <Ionicons name="eye-outline" size={18} color="#6B7280" />
             </TouchableOpacity>
 
+            {/* Edit Button */}
             <TouchableOpacity
               style={[
                 styles.actionButton,
                 isCurrentUser && styles.actionButtonDisabled,
               ]}
-              onPress={() => onDelete(item.id, item.username)}
+              onPress={() => onEdit(item)}
               disabled={isCurrentUser}
             >
               <Ionicons
-                name="trash-outline"
-                size={20}
-                color={isCurrentUser ? "#D1D5DB" : "#EF4444"}
+                name="create-outline"
+                size={18}
+                color={isCurrentUser ? "#D1D5DB" : "#2563EB"}
               />
             </TouchableOpacity>
+
+            {/* Activate/Deactivate Button */}
+            {!isCurrentUser && (
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => {
+                  if (item.is_active) {
+                    onDeactivate(item.id, item.username);
+                  } else {
+                    onActivate(item.id, item.username);
+                  }
+                }}
+              >
+                <Ionicons
+                  name={
+                    item.is_active ? "lock-closed-outline" : "lock-open-outline"
+                  }
+                  size={18}
+                  color={item.is_active ? "#F59E0B" : "#10B981"}
+                />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </TouchableOpacity>
@@ -209,6 +373,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#2563EB",
   },
+  inactiveCard: {
+    backgroundColor: "#F9FAFB",
+    borderColor: "#E5E7EB",
+    borderWidth: 1,
+    opacity: 0.8,
+  },
   cardHeader: {
     flexDirection: "row",
     marginBottom: 12,
@@ -224,6 +394,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  inactiveAvatar: {
+    opacity: 0.6,
+  },
+  inactiveStatusBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  inactiveStatusText: {
+    fontSize: 8,
+    fontWeight: "700",
+    color: "white",
+  },
   currentUserBadge: {
     position: "absolute",
     bottom: -4,
@@ -234,8 +421,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   currentUserText: {
-    fontSize: 9,
-    fontWeight: "600",
+    fontSize: 8,
+    fontWeight: "700",
     color: "white",
   },
   userInfo: {
@@ -244,27 +431,55 @@ const styles = StyleSheet.create({
   },
   userNameRow: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  nameContainer: {
+    flex: 1,
+    marginRight: 8,
   },
   username: {
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
-    marginRight: 8,
+    marginBottom: 2,
+  },
+  fullName: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  inactiveText: {
+    color: "#9CA3AF",
   },
   roleBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
+    alignSelf: "flex-start",
   },
   roleText: {
     fontSize: 11,
     fontWeight: "600",
   },
+  contactInfo: {
+    marginBottom: 8,
+  },
+  contactItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 2,
+  },
+  contactText: {
+    fontSize: 12,
+    color: "#6B7280",
+    flex: 1,
+  },
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
   },
   statusDot: {
     width: 8,
@@ -273,8 +488,29 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   statusText: {
-    fontSize: 13,
-    color: "#6B7280",
+    fontSize: 12,
+    color: "#374151",
+    fontWeight: "500",
+    marginRight: 6,
+  },
+  lastLoginText: {
+    fontSize: 11,
+    color: "#9CA3AF",
+  },
+  schoolInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  schoolText: {
+    fontSize: 12,
+    color: "#374151",
+    flex: 1,
   },
   cardDivider: {
     height: 1,
@@ -286,13 +522,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  footerInfo: {
+    flex: 1,
+  },
   infoItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 4,
+    marginBottom: 2,
   },
   infoText: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#6B7280",
   },
   cardActions: {
@@ -306,6 +546,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   actionButtonDisabled: {
     opacity: 0.5,
