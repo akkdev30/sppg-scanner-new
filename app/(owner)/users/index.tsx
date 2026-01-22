@@ -18,11 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import UserFilter from "../../../components/owner/users/UserFilter";
 import { useAuth } from "../../../context/AuthContext";
 
-<<<<<<< HEAD
 const API_BASE_URL = "https://sppg-backend-new.vercel.app/api";
-=======
-const API_BASE_URL = process.env.API_URL_SERVER || "http://localhost:3000/api";
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
 
 /* =======================
    TYPES
