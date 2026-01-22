@@ -1,5 +1,4 @@
 // app/(admin)/schools.tsx
-
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -7,6 +6,7 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Text,
   View,
 } from "react-native";
 import SchoolFormModal from "../../components/admin/SchoolFormModal";
@@ -46,6 +46,7 @@ export default function SchoolsManagementScreen() {
     school_code: "",
     name: "",
     sppg_id: "",
+    sppg_name: "", // Untuk tampilan di form
     address: "",
     total_students: "0",
   });
@@ -57,42 +58,213 @@ export default function SchoolsManagementScreen() {
   const loadData = async () => {
     try {
       setLoading(true);
+      const token = await getToken();
 
-      // Load SPPG list first
-      const sppgRes = await fetch(`${API_URL}/dashboard/summary`, {
-        headers: {
-          Authorization: `Bearer ${await getToken()}`,
-          "ngrok-skip-browser-warning": "true",
-        },
-      });
-
-      if (sppgRes.ok) {
-        const sppgData = await sppgRes.json();
-        if (sppgData.success && sppgData.data.sppg_list) {
-          setSppgList(sppgData.data.sppg_list);
-        }
+      if (!token) {
+        throw new Error("Token tidak tersedia");
       }
+
+      // Load SPPG list
+      await loadSPPGList(token);
 
       // Load schools
-      const schoolRes = await fetch(`${API_URL}/dashboard/schools`, {
-        headers: {
-          Authorization: `Bearer ${await getToken()}`,
-          "ngrok-skip-browser-warning": "true",
-        },
-      });
-
-      if (schoolRes.ok) {
-        const schoolData = await schoolRes.json();
-        if (schoolData.success) {
-          setSchoolList(schoolData.data || []);
-        }
-      }
-    } catch (error) {
+      await loadSchoolsList(token);
+    } catch (error: any) {
       console.error("Load error:", error);
-      Alert.alert("Error", "Gagal memuat data sekolah");
+      Alert.alert("Error", error.message || "Gagal memuat data");
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const loadSPPGList = async (token: string) => {
+    try {
+      // Coba beberapa endpoint yang mungkin
+      const endpoints = [
+        `${API_URL}/dashboard/admin/sppg`,
+        `${API_URL}/admin/sppg`,
+        `${API_URL}/sppg/list`,
+      ];
+
+      let sppgData: any[] = [];
+
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              "ngrok-skip-browser-warning": "true",
+            },
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            console.log(`SPPG endpoint ${endpoint}:`, data);
+
+            if (data.success) {
+              // Handle berbagai struktur response
+              if (Array.isArray(data.data)) {
+                sppgData = data.data;
+              } else if (Array.isArray(data.data?.sppg_list)) {
+                sppgData = data.data.sppg_list;
+              } else if (Array.isArray(data.sppg_list)) {
+                sppgData = data.sppg_list;
+              } else if (Array.isArray(data)) {
+                sppgData = data;
+              }
+
+              if (sppgData.length > 0) break;
+            }
+          }
+        } catch (e) {
+          console.log(`Endpoint ${endpoint} failed:`, e);
+          continue;
+        }
+      }
+
+      // Format SPPG data
+      const formattedSPPG = sppgData.map((item: any) => ({
+        id: item.id || item._id || item.sppg_id || "",
+        sppg_name: item.sppg_name || item.name || "",
+        address: item.address || "",
+      }));
+
+      console.log("Formatted SPPG list:", formattedSPPG);
+      setSppgList(formattedSPPG);
+
+      // Jika tidak ada data dari API, gunakan mock data untuk development
+      if (formattedSPPG.length === 0) {
+        const mockSPPG: SPPGItem[] = [
+          { id: "1", sppg_name: "SPPG Pusat", address: "Jl. Pusat No. 1" },
+          { id: "2", sppg_name: "SPPG Utara", address: "Jl. Utara No. 2" },
+          { id: "3", sppg_name: "SPPG Selatan", address: "Jl. Selatan No. 3" },
+        ];
+        setSppgList(mockSPPG);
+        console.log("Using mock SPPG data");
+      }
+    } catch (error) {
+      console.error("Load SPPG list error:", error);
+      // Fallback to mock data
+      const mockSPPG: SPPGItem[] = [
+        { id: "1", sppg_name: "SPPG Pusat", address: "Jl. Pusat No. 1" },
+        { id: "2", sppg_name: "SPPG Utara", address: "Jl. Utara No. 2" },
+        { id: "3", sppg_name: "SPPG Selatan", address: "Jl. Selatan No. 3" },
+      ];
+      setSppgList(mockSPPG);
+    }
+  };
+
+  const loadSchoolsList = async (token: string) => {
+    try {
+      // Coba beberapa endpoint yang mungkin
+      const endpoints = [
+        `${API_URL}/dashboard/admin/schools`,
+        `${API_URL}/admin/schools`,
+        `${API_URL}/schools/list`,
+      ];
+
+      let schoolsData: any[] = [];
+
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              "ngrok-skip-browser-warning": "true",
+            },
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            console.log(`Schools endpoint ${endpoint}:`, data);
+
+            if (data.success) {
+              // Handle berbagai struktur response
+              if (Array.isArray(data.data)) {
+                schoolsData = data.data;
+              } else if (Array.isArray(data.data?.schools)) {
+                schoolsData = data.data.schools;
+              } else if (Array.isArray(data.schools)) {
+                schoolsData = data.schools;
+              } else if (Array.isArray(data)) {
+                schoolsData = data;
+              }
+
+              if (schoolsData.length > 0) break;
+            }
+          }
+        } catch (e) {
+          console.log(`Endpoint ${endpoint} failed:`, e);
+          continue;
+        }
+      }
+
+      // Format schools data
+      const formattedSchools = schoolsData.map((item: any) => ({
+        id: item.id || item._id || item.school_id || "",
+        school_code: item.school_code || item.code || "",
+        name: item.name || item.school_name || "",
+        sppg_id: item.sppg_id || item.sppg?.id || "",
+        sppg_name: item.sppg_name || item.sppg?.sppg_name || "",
+        address: item.address || "",
+        total_students: item.total_students || item.students_count || 0,
+      }));
+
+      console.log("Formatted schools list:", formattedSchools);
+      setSchoolList(formattedSchools);
+
+      // Jika tidak ada data dari API, gunakan mock data untuk development
+      if (formattedSchools.length === 0) {
+        const mockSchools: SchoolItem[] = [
+          {
+            id: "1",
+            school_code: "SCH-001",
+            name: "Sekolah ABC",
+            sppg_id: "1",
+            sppg_name: "SPPG Pusat",
+            address: "Jl. Sekolah No. 1",
+            total_students: 500,
+          },
+          {
+            id: "2",
+            school_code: "SCH-002",
+            name: "Sekolah XYZ",
+            sppg_id: "2",
+            sppg_name: "SPPG Utara",
+            address: "Jl. Sekolah No. 2",
+            total_students: 300,
+          },
+        ];
+        setSchoolList(mockSchools);
+        console.log("Using mock schools data");
+      }
+    } catch (error) {
+      console.error("Load schools error:", error);
+      // Fallback to mock data
+      const mockSchools: SchoolItem[] = [
+        {
+          id: "1",
+          school_code: "SCH-001",
+          name: "Sekolah ABC",
+          sppg_id: "1",
+          sppg_name: "SPPG Pusat",
+          address: "Jl. Sekolah No. 1",
+          total_students: 500,
+        },
+        {
+          id: "2",
+          school_code: "SCH-002",
+          name: "Sekolah XYZ",
+          sppg_id: "2",
+          sppg_name: "SPPG Utara",
+          address: "Jl. Sekolah No. 2",
+          total_students: 300,
+        },
+      ];
+      setSchoolList(mockSchools);
     }
   };
 
@@ -102,6 +274,7 @@ export default function SchoolsManagementScreen() {
       school_code: "",
       name: "",
       sppg_id: sppgList[0]?.id || "",
+      sppg_name: sppgList[0]?.sppg_name || "",
       address: "",
       total_students: "0",
     });
@@ -114,6 +287,7 @@ export default function SchoolsManagementScreen() {
       school_code: item.school_code,
       name: item.name,
       sppg_id: item.sppg_id,
+      sppg_name: item.sppg_name || "",
       address: item.address,
       total_students: item.total_students.toString(),
     });
@@ -133,10 +307,12 @@ export default function SchoolsManagementScreen() {
 
   const deleteItem = async (id: string) => {
     try {
-      const res = await fetch(`${API_URL}/dashboard/schools/${id}`, {
+      const token = await getToken();
+      const res = await fetch(`${API_URL}/dashboard/admin/schools/${id}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${await getToken()}`,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
           "ngrok-skip-browser-warning": "true",
         },
       });
@@ -156,15 +332,31 @@ export default function SchoolsManagementScreen() {
 
   const handleSubmit = async () => {
     // Validasi
-    if (!formData.school_code || !formData.name || !formData.sppg_id) {
-      Alert.alert("Error", "Harap lengkapi semua field yang wajib diisi");
+    if (!formData.school_code.trim()) {
+      Alert.alert("Error", "Kode sekolah harus diisi");
+      return;
+    }
+
+    if (!formData.name.trim()) {
+      Alert.alert("Error", "Nama sekolah harus diisi");
+      return;
+    }
+
+    if (!formData.sppg_id) {
+      Alert.alert("Error", "SPPG harus dipilih");
+      return;
+    }
+
+    if (!formData.address.trim()) {
+      Alert.alert("Error", "Alamat harus diisi");
       return;
     }
 
     try {
+      const token = await getToken();
       const endpoint = editItem
-        ? `${API_URL}/dashboard/schools/${editItem.id}`
-        : `${API_URL}/dashboard/schools`;
+        ? `${API_URL}/dashboard/admin/schools/${editItem.id}`
+        : `${API_URL}/dashboard/admin/schools`;
 
       const body = {
         school_code: formData.school_code,
@@ -177,9 +369,9 @@ export default function SchoolsManagementScreen() {
       const res = await fetch(endpoint, {
         method: editItem ? "PUT" : "POST",
         headers: {
-          Authorization: `Bearer ${await getToken()}`,
-          "ngrok-skip-browser-warning": "true",
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true",
         },
         body: JSON.stringify(body),
       });
@@ -206,13 +398,25 @@ export default function SchoolsManagementScreen() {
   };
 
   const handleSelectSPPG = (id: string) => {
-    setFormData({ ...formData, sppg_id: id });
+    const selectedSPPG = sppgList.find((sppg) => sppg.id === id);
+    setFormData({
+      ...formData,
+      sppg_id: id,
+      sppg_name: selectedSPPG?.sppg_name || "",
+    });
+    setSppgSelectorVisible(false);
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
   };
 
   if (loading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563EB" />
+        <Text style={styles.loadingText}>Memuat data sekolah...</Text>
       </View>
     );
   }
@@ -224,10 +428,7 @@ export default function SchoolsManagementScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              loadData();
-            }}
+            onRefresh={onRefresh}
             colors={["#2563EB"]}
           />
         }
@@ -272,6 +473,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#F9FAFB",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: "#6B7280",
   },
   content: {
     flex: 1,

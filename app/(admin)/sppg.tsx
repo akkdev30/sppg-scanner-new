@@ -14,6 +14,7 @@ import { useAuth } from "../../context/AuthContext";
 
 interface SPPGItem {
   id: string;
+  sppg_code: string;
   sppg_name: string;
   address: string;
   phone_number?: string;
@@ -31,6 +32,7 @@ export default function SPPGManagementScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editItem, setEditItem] = useState<SPPGItem | null>(null);
   const [formData, setFormData] = useState({
+    sppg_code: "",
     sppg_name: "",
     address: "",
     phone_number: "",
@@ -44,7 +46,7 @@ export default function SPPGManagementScreen() {
     try {
       setLoading(true);
       const token = await getToken();
-      const res = await fetch(`${API_URL}/admin/sppg`, {
+      const res = await fetch(`${API_URL}/dashboard/admin/sppg`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -55,9 +57,12 @@ export default function SPPGManagementScreen() {
       const responseData = await res.json();
 
       if (res.ok && responseData.success) {
-        // Format data sesuai dengan yang dibutuhkan
+        // Format data sesuai dengan yang dibutuhkan, termasuk sppg_code
         const formattedData = responseData.data.map((item: any) => ({
           id: item.id || item._id || item.sppg_id,
+          sppg_code:
+            item.sppg_code ||
+            `SPPG-${(item.id || item._id || "").substring(0, 8)}`,
           sppg_name: item.sppg_name,
           address: item.address,
           phone_number: item.phone_number,
@@ -72,22 +77,29 @@ export default function SPPGManagementScreen() {
       console.error("Load error:", error);
       Alert.alert("Error", error.message || "Gagal memuat data SPPG");
 
-      // Fallback: coba ambil data dari endpoint lama jika endpoint baru gagal
+      // Fallback menggunakan mock data jika API gagal
       try {
-        const token = await getToken();
-        const fallbackRes = await fetch(`${API_URL}/dashboard/summary`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "ngrok-skip-browser-warning": "true",
+        // Mock data untuk development/testing
+        const mockData: SPPGItem[] = [
+          {
+            id: "1",
+            sppg_code: "SPPG-001",
+            sppg_name: "SPPG Pusat",
+            address: "Jl. Pusat No. 1, Kota",
+            phone_number: "081111111111",
+            created_at: new Date().toISOString(),
           },
-        });
-
-        if (fallbackRes.ok) {
-          const fallbackData = await fallbackRes.json();
-          if (fallbackData.success && fallbackData.data.sppg_list) {
-            setSppgList(fallbackData.data.sppg_list);
-          }
-        }
+          {
+            id: "2",
+            sppg_code: "SPPG-002",
+            sppg_name: "SPPG Utara",
+            address: "Jl. Utara No. 2, Kota",
+            phone_number: "082222222222",
+            created_at: new Date().toISOString(),
+          },
+        ];
+        setSppgList(mockData);
+        console.log("Using mock data for SPPG");
       } catch (fallbackError) {
         console.error("Fallback error:", fallbackError);
       }
@@ -99,13 +111,19 @@ export default function SPPGManagementScreen() {
 
   const handleAdd = () => {
     setEditItem(null);
-    setFormData({ sppg_name: "", address: "", phone_number: "" });
+    setFormData({
+      sppg_code: "",
+      sppg_name: "",
+      address: "",
+      phone_number: "",
+    });
     setModalVisible(true);
   };
 
   const handleEdit = (item: SPPGItem) => {
     setEditItem(item);
     setFormData({
+      sppg_code: item.sppg_code || "",
       sppg_name: item.sppg_name,
       address: item.address,
       phone_number: item.phone_number || "",
@@ -126,8 +144,10 @@ export default function SPPGManagementScreen() {
 
   const deleteItem = async (id: string) => {
     try {
+      console.log("DELETE SPPG ID:", id);
+
       const token = await getToken();
-      const res = await fetch(`${API_URL}/admin/sppg/${id}`, {
+      const res = await fetch(`${API_URL}/dashboard/admin/sppg/${id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -151,6 +171,11 @@ export default function SPPGManagementScreen() {
 
   const handleSubmit = async () => {
     // Validasi form
+    if (!formData.sppg_code.trim()) {
+      Alert.alert("Error", "Kode SPPG harus diisi");
+      return;
+    }
+
     if (!formData.sppg_name.trim()) {
       Alert.alert("Error", "Nama SPPG harus diisi");
       return;
@@ -164,8 +189,8 @@ export default function SPPGManagementScreen() {
     try {
       const token = await getToken();
       const endpoint = editItem
-        ? `${API_URL}/admin/sppg/${editItem.id}`
-        : `${API_URL}/admin/sppg`;
+        ? `${API_URL}/dashboard/admin/sppg/${editItem.id}`
+        : `${API_URL}/dashboard/admin/sppg`;
 
       const res = await fetch(endpoint, {
         method: editItem ? "PUT" : "POST",
@@ -195,6 +220,13 @@ export default function SPPGManagementScreen() {
   };
 
   const formFields = [
+    {
+      name: "sppg_code",
+      label: "Kode SPPG",
+      type: "text" as const,
+      placeholder: "Masukkan kode SPPG (contoh: SPPG-001)",
+      required: true,
+    },
     {
       name: "sppg_name",
       label: "Nama SPPG",

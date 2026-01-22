@@ -18,7 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../..//context/AuthContext";
 
 interface ScanData {
   type: string;
