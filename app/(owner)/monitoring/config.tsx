@@ -843,8 +843,16 @@ const getTableColor = (tableId: string) => {
   return colors[tableId] || "#6B7280";
 };
 
-// Export default config
-export default TABLE_CONFIGS;
+// Export list tabel yang tersedia untuk halaman index
+export const AVAILABLE_TABLES = Object.entries(TABLE_CONFIGS).map(
+  ([id, config]) => ({
+    id,
+    name: config.displayName,
+    description: config.description,
+    icon: config.icon,
+    color: getTableColor(id),
+  }),
+);
 
 // Export fungsi untuk mendapatkan config berdasarkan table name
 export const getTableConfig = (tableName: string) => {
@@ -858,45 +866,6 @@ export const getTableConfig = (tableName: string) => {
       actions: { view: true },
     }
   );
-};
-
-// Export list tabel yang tersedia untuk halaman index
-export const AVAILABLE_TABLES = Object.keys(TABLE_CONFIGS).map((key) => ({
-  id: key,
-  name: TABLE_CONFIGS[key].displayName,
-  description: TABLE_CONFIGS[key].description,
-  icon: TABLE_CONFIGS[key].icon,
-  color: getTableColor(key),
-}));
-
-// Export list tabel yang tersedia untuk halaman index
-export const AVAILABLE_TABLES = Object.entries(TABLE_CONFIGS).map(
-  ([id, config]) => ({
-    id,
-    name: config.displayName,
-    description: config.description,
-    icon: config.icon,
-    color: getTableColor(id),
-  }),
-);
-
-// Export fungsi untuk mendapatkan config berdasarkan table name
-export const getTableConfig = (tableName: string): TableConfig => {
-  const config = TABLE_CONFIGS[tableName as TableName];
-
-  if (config) {
-    return config;
-  }
-
-  // Return default config jika tidak ditemukan
-  return {
-    displayName: tableName,
-    icon: "grid",
-    description: "Data monitoring table",
-    searchableColumns: [],
-    columns: [],
-    actions: { view: true },
-  };
 };
 
 // Export default config
