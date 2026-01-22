@@ -16,94 +16,60 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
-import { TABLE_CONFIGS } from "./config";
-
-// Tabel yang tersedia sesuai dengan TABLE_CONFIGS
-const MONITORING_TABLES = [
-  {
-    id: "users",
-    name: "Users",
-    description: "Data pengguna sistem dengan berbagai role",
-    icon: "people",
-    color: "#3B82F6",
-  },
-  {
-    id: "sppg_masters",
-    name: "SPPG Masters",
-    description: "Data penyedia makanan (Supplier/Pusat Produksi)",
-    icon: "business",
-    color: "#10B981",
-  },
-  {
-    id: "schools",
-    name: "Schools",
-    description: "Data sekolah penerima distribusi",
-    icon: "school",
-    color: "#8B5CF6",
-  },
-  {
-    id: "menus",
-    name: "Menus",
-    description: "Jadwal produksi menu harian",
-    icon: "calendar",
-    color: "#F59E0B",
-  },
-  {
-    id: "school_menu_distribution",
-    name: "Distribution",
-    description: "Alokasi dan penerimaan menu ke sekolah",
-    icon: "car",
-    color: "#EF4444",
-  },
-  {
-    id: "problem_reports",
-    name: "Problem Reports",
-    description: "Laporan masalah dalam distribusi",
-    icon: "warning",
-    color: "#DC2626",
-  },
-  {
-    id: "qr_codes",
-    name: "QR Codes",
-    description: "Kode QR untuk verifikasi distribusi",
-    icon: "qr-code",
-    color: "#6366F1",
-  },
-];
+import { AVAILABLE_TABLES } from "./config";
 
 // Filter options berdasarkan kategori tabel
 const FILTER_OPTIONS = [
-  { id: "all", label: "Semua Tabel", color: "#6B7280" },
+  { id: "all", label: "Semua Tabel", color: "#6B7280", icon: "grid" },
   {
     id: "master",
     label: "Data Master",
-    tables: ["users", "sppg_masters", "schools"],
+    tables: [
+      "users",
+      "sppg_masters",
+      "schools",
+      "school_pics",
+      "menu_categories",
+      "menu_items",
+    ],
     color: "#3B82F6",
+    icon: "layers",
   },
   {
     id: "operational",
     label: "Operasional",
-    tables: ["menus", "school_menu_distribution"],
+    tables: ["menus", "menu_details", "school_menu_distribution"],
     color: "#10B981",
+    icon: "construct",
   },
   {
     id: "tracking",
     label: "Tracking & QR",
-    tables: ["qr_codes"],
+    tables: ["qr_codes", "scan_logs"],
     color: "#8B5CF6",
+    icon: "scan",
   },
   {
     id: "reports",
     label: "Pelaporan",
     tables: ["problem_reports"],
     color: "#EF4444",
+    icon: "document-text",
+  },
+  {
+    id: "audit",
+    label: "Audit & Logs",
+    tables: ["activity_logs", "monitoring_logs"],
+    color: "#F59E0B",
+    icon: "shield-checkmark",
   },
 ];
 
 export default function MonitoringScreen() {
   const router = useRouter();
-  const { getToken } = useAuth();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
@@ -121,57 +87,23 @@ export default function MonitoringScreen() {
   const fetchTableStats = async () => {
     setLoading(true);
     try {
-      const token = await getToken();
-      if (!token) throw new Error("Authentication required");
+      // Simulasi API call untuk mendapatkan statistik
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Fetch total records untuk setiap tabel
-      const statsPromises = MONITORING_TABLES.map(async (table) => {
-        try {
-          const response = await fetch(
-            `${process.env.API_URL_SERVER}/api/owner/monitoring/stats?table_name=${table.id}`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            },
-          );
-
-          if (!response.ok) {
-            console.warn(
-              `Failed to fetch stats for ${table.id}:`,
-              response.status,
-            );
-            return { tableId: table.id, count: 0, success: false };
-          }
-
-          const result = await response.json();
-          return {
-            tableId: table.id,
-            count: result.data?.total_records || 0,
-            lastUpdated: result.data?.last_updated || new Date().toISOString(),
-            success: true,
-          };
-        } catch (error) {
-          console.error(`Error fetching stats for ${table.id}:`, error);
-          return { tableId: table.id, count: 0, success: false };
-        }
-      });
-
-      const results = await Promise.all(statsPromises);
-      const newStats: Record<
+      const stats: Record<
         string,
         { count: number; lastUpdated: string; loading: boolean }
       > = {};
-
-      results.forEach((result) => {
-        newStats[result.tableId] = {
-          count: result.count,
-          lastUpdated: result.lastUpdated,
-          loading: !result.success,
+      AVAILABLE_TABLES.forEach((table) => {
+        stats[table.id] = {
+          count: Math.floor(Math.random() * 1000) + 100,
+          lastUpdated: new Date(
+            Date.now() - Math.random() * 86400000,
+          ).toISOString(),
+          loading: false,
         };
       });
-
-      setTableStats(newStats);
+      setTableStats(stats);
     } catch (error: any) {
       console.error("Error fetching table stats:", error);
       Alert.alert("Error", "Gagal memuat statistik tabel");
@@ -187,7 +119,7 @@ export default function MonitoringScreen() {
   };
 
   // Filter tables berdasarkan search dan filter
-  const filteredTables = MONITORING_TABLES.filter((table) => {
+  const filteredTables = AVAILABLE_TABLES.filter((table) => {
     const matchesSearch =
       table.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       table.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -220,12 +152,20 @@ export default function MonitoringScreen() {
               selectedFilter === filter.id && { backgroundColor: filter.color },
             ]}
             onPress={() => setSelectedFilter(filter.id)}
+            activeOpacity={0.7}
           >
+            <Ionicons
+              name={filter.icon as any}
+              size={14}
+              color={selectedFilter === filter.id ? "white" : filter.color}
+              style={styles.filterChipIcon}
+            />
             <Text
               style={[
                 styles.filterChipText,
                 selectedFilter === filter.id && styles.filterChipTextActive,
               ]}
+              numberOfLines={1}
             >
               {filter.label}
             </Text>
@@ -238,10 +178,9 @@ export default function MonitoringScreen() {
   const renderTableCard = ({
     item,
   }: {
-    item: (typeof MONITORING_TABLES)[0];
+    item: (typeof AVAILABLE_TABLES)[0];
   }) => {
     const stats = tableStats[item.id];
-    const config = TABLE_CONFIGS[item.id as keyof typeof TABLE_CONFIGS];
 
     return (
       <TouchableOpacity
@@ -256,46 +195,42 @@ export default function MonitoringScreen() {
               { backgroundColor: `${item.color}15` },
             ]}
           >
-            <Ionicons name={item.icon as any} size={24} color={item.color} />
+            <Ionicons name={item.icon as any} size={22} color={item.color} />
           </View>
           <View style={styles.tableInfo}>
-            <Text style={styles.tableName}>{item.name}</Text>
+            <Text style={styles.tableName} numberOfLines={1}>
+              {item.name}
+            </Text>
             <Text style={styles.tableDescription} numberOfLines={2}>
               {item.description}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-        </View>
-
-        <View style={styles.tableStats}>
-          <View style={styles.statItem}>
-            <Ionicons name="document-text" size={14} color="#6B7280" />
-            <Text style={styles.statText}>
-              {stats?.loading ? (
-                <ActivityIndicator size="small" color="#6B7280" />
-              ) : (
-                `${(stats?.count || 0).toLocaleString()} records`
-              )}
-            </Text>
-          </View>
-          <View style={styles.statItem}>
-            <Ionicons name="grid" size={14} color="#6B7280" />
-            <Text style={styles.statText}>
-              {config?.columns?.length || 6} columns
-            </Text>
-          </View>
-          {stats?.lastUpdated && (
-            <View style={styles.statItem}>
-              <Ionicons name="time" size={14} color="#6B7280" />
-              <Text style={styles.statText}>
-                {new Date(stats.lastUpdated).toLocaleDateString("id-ID")}
+          <View style={styles.tableActions}>
+            {stats?.loading ? (
+              <ActivityIndicator size="small" color="#6B7280" />
+            ) : (
+              <Text style={styles.tableCount}>
+                {stats?.count?.toLocaleString() || "0"}
               </Text>
-            </View>
-          )}
+            )}
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+          </View>
         </View>
 
         <View style={styles.tableFooter}>
-          <Text style={styles.viewDetailsText}>Monitor Data →</Text>
+          <View style={styles.footerStats}>
+            <View style={styles.footerStat}>
+              <Ionicons name="time-outline" size={12} color="#6B7280" />
+              <Text style={styles.footerStatText}>
+                {stats?.lastUpdated
+                  ? new Date(stats.lastUpdated).toLocaleDateString("id-ID")
+                  : "-"}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.viewButton}>
+            <Text style={styles.viewButtonText}>Lihat Detail</Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -308,9 +243,31 @@ export default function MonitoringScreen() {
     );
   };
 
+  const getUserInitial = () => {
+    if (!user?.full_name) return "U";
+    return user.full_name.charAt(0).toUpperCase();
+  };
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* Header User Info */}
+      <View style={styles.topHeader}>
+        <View style={styles.userInfo}>
+          <View style={styles.userAvatar}>
+            <Text style={styles.userInitial}>{getUserInitial()}</Text>
+          </View>
+          <View style={styles.userDetails}>
+            <Text style={styles.userName} numberOfLines={1}>
+              {user?.full_name || "Owner"}
+            </Text>
+            <Text style={styles.userRole} numberOfLines={1}>
+              {user?.role ? user.role.toUpperCase() : "OWNER"}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Main Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Data Monitoring</Text>
@@ -323,17 +280,50 @@ export default function MonitoringScreen() {
           onPress={() => setShowFilterModal(true)}
           activeOpacity={0.7}
         >
-          <Ionicons name="options" size={20} color="#2563EB" />
+          <Ionicons name="filter" size={18} color="#2563EB" />
           <Text style={styles.filterButtonText}>Filter</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* Stats Summary */}
+      <View style={styles.statsSummary}>
+        <View style={styles.statBox}>
+          <View style={styles.statIconContainer}>
+            <Ionicons name="grid-outline" size={20} color="#3B82F6" />
+          </View>
+          <Text style={styles.statNumber}>{filteredTables.length}</Text>
+          <Text style={styles.statLabel}>Tabel</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statBox}>
+          <View style={styles.statIconContainer}>
+            <Ionicons name="document-text-outline" size={20} color="#10B981" />
+          </View>
+          <Text style={styles.statNumber}>
+            {loading ? (
+              <ActivityIndicator size="small" color="#111827" />
+            ) : (
+              calculateTotalRecords().toLocaleString()
+            )}
+          </Text>
+          <Text style={styles.statLabel}>Data</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statBox}>
+          <View style={styles.statIconContainer}>
+            <Ionicons name="stats-chart-outline" size={20} color="#8B5CF6" />
+          </View>
+          <Text style={styles.statNumber}>{AVAILABLE_TABLES.length}</Text>
+          <Text style={styles.statLabel}>Kategori</Text>
+        </View>
       </View>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <Ionicons
           name="search"
-          size={20}
-          color="#9CA3AF"
+          size={18}
+          color="#6B7280"
           style={styles.searchIcon}
         />
         <TextInput
@@ -345,36 +335,17 @@ export default function MonitoringScreen() {
           clearButtonMode="while-editing"
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery("")}>
-            <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+          <TouchableOpacity
+            onPress={() => setSearchQuery("")}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="close-circle" size={18} color="#9CA3AF" />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Filter Chips */}
       {renderFilterChips()}
-
-      {/* Stats Summary */}
-      <View style={styles.statsSummary}>
-        <View style={styles.statBox}>
-          <Text style={styles.statNumber}>{filteredTables.length}</Text>
-          <Text style={styles.statLabel}>Tabel Tersedia</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statNumber}>
-            {loading ? (
-              <ActivityIndicator size="small" color="#111827" />
-            ) : (
-              calculateTotalRecords().toLocaleString()
-            )}
-          </Text>
-          <Text style={styles.statLabel}>Total Records</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statNumber}>{MONITORING_TABLES.length}</Text>
-          <Text style={styles.statLabel}>Jenis Tabel</Text>
-        </View>
-      </View>
 
       {/* Tables List */}
       {loading && !refreshing ? (
@@ -408,6 +379,13 @@ export default function MonitoringScreen() {
           }
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <View style={styles.listHeader}>
+              <Text style={styles.listHeaderTitle}>
+                Tabel Monitoring ({filteredTables.length})
+              </Text>
+            </View>
+          }
         />
       )}
 
@@ -421,16 +399,23 @@ export default function MonitoringScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Filter Data Monitoring</Text>
+              <View>
+                <Text style={styles.modalTitle}>Filter Kategori</Text>
+                <Text style={styles.modalSubtitle}>Pilih kategori tabel</Text>
+              </View>
               <TouchableOpacity
                 onPress={() => setShowFilterModal(false)}
                 activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Ionicons name="close" size={24} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView
+              style={styles.modalBody}
+              showsVerticalScrollIndicator={false}
+            >
               {FILTER_OPTIONS.map((filter) => (
                 <TouchableOpacity
                   key={filter.id}
@@ -448,21 +433,41 @@ export default function MonitoringScreen() {
                     <View
                       style={[
                         styles.modalOptionIcon,
-                        { backgroundColor: filter.color },
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        styles.modalOptionText,
-                        selectedFilter === filter.id &&
-                          styles.modalOptionTextActive,
+                        { backgroundColor: filter.color + "20" },
                       ]}
                     >
-                      {filter.label}
-                    </Text>
+                      <Ionicons
+                        name={filter.icon as any}
+                        size={18}
+                        color={filter.color}
+                      />
+                    </View>
+                    <View style={styles.modalOptionTextContainer}>
+                      <Text
+                        style={[
+                          styles.modalOptionText,
+                          selectedFilter === filter.id &&
+                            styles.modalOptionTextActive,
+                        ]}
+                      >
+                        {filter.label}
+                      </Text>
+                      <Text style={styles.modalOptionCount}>
+                        {filter.tables
+                          ? filter.tables.length
+                          : AVAILABLE_TABLES.length}{" "}
+                        tabel
+                      </Text>
+                    </View>
                   </View>
                   {selectedFilter === filter.id && (
-                    <Ionicons name="checkmark" size={20} color="#2563EB" />
+                    <View style={styles.modalOptionCheck}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={22}
+                        color={filter.color}
+                      />
+                    </View>
                   )}
                 </TouchableOpacity>
               ))}
@@ -476,14 +481,14 @@ export default function MonitoringScreen() {
                 }}
                 activeOpacity={0.7}
               >
-                <Ionicons name="refresh" size={20} color="#DC2626" />
-                <Text style={styles.resetButtonText}>Reset Semua Filter</Text>
+                <Ionicons name="refresh-outline" size={18} color="#DC2626" />
+                <Text style={styles.resetButtonText}>Reset Filter</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -492,22 +497,67 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F9FAFB",
   },
+  topHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+    backgroundColor: "white",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  userInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  userAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  userInitial: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 2,
+  },
+  userRole: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
     backgroundColor: "white",
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "700",
     color: "#111827",
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#6B7280",
     marginTop: 4,
   },
@@ -515,161 +565,220 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#EFF6FF",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
     gap: 6,
-    marginTop: 8,
   },
   filterButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#2563EB",
     fontWeight: "600",
+  },
+  statsSummary: {
+    flexDirection: "row",
+    backgroundColor: "white",
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 4,
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  statBox: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F9FAFB",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: "#6B7280",
+    fontWeight: "500",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    height: "60%",
+    backgroundColor: "#F3F4F6",
+    alignSelf: "center",
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "white",
     marginHorizontal: 20,
-    marginTop: 8,
+    marginTop: 12,
+    marginBottom: 4,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   searchIcon: {
     marginRight: 12,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: "#111827",
+    padding: 0,
   },
   filterContainer: {
     backgroundColor: "white",
     paddingVertical: 12,
+    paddingHorizontal: 4,
   },
   filterContentContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   filterChip: {
-    backgroundColor: "#F3F4F6",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 20,
     marginRight: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    minHeight: 36,
   },
   filterChipActive: {
-    backgroundColor: "#2563EB",
+    borderColor: "transparent",
+  },
+  filterChipIcon: {
+    marginRight: 6,
   },
   filterChipText: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#6B7280",
     fontWeight: "500",
   },
   filterChipTextActive: {
     color: "white",
-  },
-  statsSummary: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    backgroundColor: "white",
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 8,
-    padding: 20,
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  statBox: {
-    alignItems: "center",
-    minWidth: 80,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#111827",
-    height: 32,
-    lineHeight: 32,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 4,
-    textAlign: "center",
+    fontWeight: "600",
   },
   listContainer: {
     paddingHorizontal: 20,
     paddingBottom: 100,
   },
+  listHeader: {
+    marginBottom: 16,
+  },
+  listHeaderTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#374151",
+  },
   tableCard: {
     backgroundColor: "white",
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#F3F4F6",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 1,
   },
   tableHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   tableIconContainer: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
+    marginRight: 12,
   },
   tableInfo: {
     flex: 1,
+    marginRight: 12,
   },
   tableName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
     color: "#111827",
     marginBottom: 4,
   },
   tableDescription: {
-    fontSize: 14,
-    color: "#6B7280",
-    lineHeight: 20,
-  },
-  tableStats: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "#F3F4F6",
-    marginBottom: 16,
-  },
-  statItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  statText: {
     fontSize: 13,
     color: "#6B7280",
+    lineHeight: 18,
+  },
+  tableActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  tableCount: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+    backgroundColor: "#F9FAFB",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    minWidth: 50,
+    textAlign: "center",
   },
   tableFooter: {
-    alignItems: "flex-end",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
   },
-  viewDetailsText: {
-    fontSize: 14,
+  footerStats: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  footerStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  footerStatText: {
+    fontSize: 11,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  viewButton: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  viewButtonText: {
+    fontSize: 12,
     color: "#2563EB",
     fontWeight: "600",
   },
@@ -686,11 +795,11 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     alignItems: "center",
-    paddingTop: 80,
-    paddingBottom: 120,
+    paddingTop: 60,
+    paddingBottom: 100,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
     color: "#6B7280",
     marginTop: 16,
@@ -700,31 +809,37 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     textAlign: "center",
     marginTop: 8,
-    maxWidth: 300,
+    maxWidth: 280,
+    lineHeight: 20,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
     justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: "white",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: "80%",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "85%",
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     padding: 24,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
     color: "#111827",
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: "#6B7280",
   },
   modalBody: {
     padding: 24,
@@ -733,30 +848,45 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
+  },
+  modalOptionActive: {
+    borderBottomColor: "transparent",
   },
   modalOptionContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 14,
+    flex: 1,
   },
   modalOptionIcon: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  modalOptionActive: {
-    borderBottomColor: "#2563EB",
+  modalOptionTextContainer: {
+    flex: 1,
   },
   modalOptionText: {
     fontSize: 16,
     color: "#374151",
+    fontWeight: "500",
+    marginBottom: 2,
   },
   modalOptionTextActive: {
-    color: "#2563EB",
+    color: "#111827",
     fontWeight: "600",
+  },
+  modalOptionCount: {
+    fontSize: 13,
+    color: "#9CA3AF",
+  },
+  modalOptionCheck: {
+    marginLeft: 12,
   },
   resetButton: {
     flexDirection: "row",
@@ -766,10 +896,11 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginTop: 24,
-    gap: 8,
+    marginBottom: 8,
+    gap: 10,
   },
   resetButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     color: "#DC2626",
     fontWeight: "600",
   },

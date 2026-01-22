@@ -1,4 +1,4 @@
-// app/(owner)/_layout.tsx
+// app/(owner)/index.tsx - OWNER DASHBOARD
 
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -12,11 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "../../context/AuthContext";
-
-// Components
 import { SafeAreaView } from "react-native-safe-area-context";
-import StatCard from "../../components/admin/StatCard";
+import { useAuth } from "../../context/AuthContext";
 
 // Types
 interface DashboardData {
@@ -93,7 +90,7 @@ interface DashboardData {
   }>;
 }
 
-// Mock data berdasarkan struktur database yang lengkap
+// Mock data
 const MOCK_DATA: DashboardData = {
   overview_stats: {
     total_sppg: 8,
@@ -259,34 +256,29 @@ const MOCK_DATA: DashboardData = {
 };
 
 export default function OwnerDashboard() {
-  const { user, getToken } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dashboardData, setDashboardData] = useState<DashboardData>(MOCK_DATA);
-  const [currentDate, setCurrentDate] = useState("");
+  const [currentTime, setCurrentTime] = useState("");
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const token = await getToken();
 
-      if (!token) {
-        throw new Error("Authentication required");
-      }
-
-      // TODO: Replace with actual API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Format current date
-      const today = new Date();
-      const options: Intl.DateTimeFormatOptions = {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
+      // Format current time
+      const now = new Date();
+      const timeOptions: Intl.DateTimeFormatOptions = {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
       };
-      setCurrentDate(today.toLocaleDateString("id-ID", options));
+      setCurrentTime(now.toLocaleTimeString("id-ID", timeOptions));
+
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
       setDashboardData(MOCK_DATA);
     } catch (error: any) {
@@ -316,148 +308,210 @@ export default function OwnerDashboard() {
     router.push(screen as any);
   };
 
-  if (loading && !refreshing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <Ionicons name="speedometer" size={48} color="#2563EB" />
-        <Text style={styles.loadingText}>Memuat Dashboard Monitoring...</Text>
+  const handleLogout = async () => {
+    try {
+      Alert.alert(
+        "Konfirmasi Logout",
+        "Apakah Anda yakin ingin logout?",
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Logout",
+            style: "destructive",
+            onPress: async () => {
+              await logout();
+              router.replace("/(auth)/login");
+            },
+          },
+        ],
+        { cancelable: true },
+      );
+    } catch (error) {
+      Alert.alert("Error", "Gagal melakukan logout");
+    }
+  };
+
+  const getUserInitial = () => {
+    if (!user?.full_name) return "O";
+    return user.full_name.charAt(0).toUpperCase();
+  };
+
+  // Stat Card Component
+  const StatCard = ({
+    title,
+    value,
+    icon,
+    color,
+    onPress,
+  }: {
+    title: string;
+    value: string;
+    icon: string;
+    color: string;
+    onPress?: () => void;
+  }) => (
+    <TouchableOpacity
+      style={styles.statCard}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.statIcon, { backgroundColor: `${color}15` }]}>
+        <Ionicons name={icon as any} size={18} color={color} />
       </View>
-    );
-  }
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statTitle}>{title}</Text>
+    </TouchableOpacity>
+  );
 
   return (
-    <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* Top Header with User Info */}
+      <View style={styles.topHeader}>
+        <View style={styles.userInfo}>
+          <View style={styles.userAvatar}>
+            <Text style={styles.userInitial}>{getUserInitial()}</Text>
+          </View>
+          <View style={styles.userDetails}>
+            <Text style={styles.userName} numberOfLines={1}>
+              {user?.full_name || "Owner Dashboard"}
+            </Text>
+            <Text style={styles.userRole} numberOfLines={1}>
+              {user?.role ? user.role.toUpperCase() : "OWNER"}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.headerActions}>
+          <View style={styles.liveIndicator}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>LIVE</Text>
+            <Text style={styles.timeText}>{currentTime}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
             colors={["#2563EB"]}
+            tintColor="#2563EB"
           />
         }
+        showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
+        {/* Dashboard Header */}
+        <View style={styles.dashboardHeader}>
           <View>
             <Text style={styles.welcomeText}>Monitoring Dashboard</Text>
-            <Text style={styles.subtitleText}>{currentDate}</Text>
+            <Text style={styles.subtitleText}>
+              Real-time system overview and analytics
+            </Text>
           </View>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.monitoringBtn}
-              onPress={() => navigateTo("/(owner)/monitoring")}
-            >
-              <Ionicons name="desktop" size={16} color="#2563EB" />
-              <Text style={styles.monitoringBtnText}>Monitor All Data</Text>
-            </TouchableOpacity>
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>REAL-TIME</Text>
-            </View>
-          </View>
+          <TouchableOpacity
+            style={styles.monitorAllButton}
+            onPress={() => navigateTo("/(owner)/monitoring")}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="eye" size={16} color="#2563EB" />
+            <Text style={styles.monitorAllText}>Monitor All</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Quick Overview Stats */}
-        <View style={styles.overviewSection}>
-          <Text style={styles.sectionTitle}>System Overview</Text>
-          <View style={styles.overviewGrid}>
-            <TouchableOpacity
-              style={styles.overviewCard}
-              onPress={() => navigateTo("/(owner)/sppg")}
-            >
-              <View style={styles.overviewIconContainer}>
-                <Ionicons name="business" size={20} color="#2563EB" />
-              </View>
-              <Text style={styles.overviewNumber}>
-                {dashboardData.overview_stats.total_sppg}
-              </Text>
-              <Text style={styles.overviewLabel}>SPPG</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.overviewCard}
-              onPress={() => navigateTo("/(owner)/schools")}
-            >
-              <View style={styles.overviewIconContainer}>
-                <Ionicons name="school" size={20} color="#7C3AED" />
-              </View>
-              <Text style={styles.overviewNumber}>
-                {dashboardData.overview_stats.total_schools}
-              </Text>
-              <Text style={styles.overviewLabel}>Sekolah</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.overviewCard}
-              onPress={() => navigateTo("/(owner)/users")}
-            >
-              <View style={styles.overviewIconContainer}>
-                <Ionicons name="people" size={20} color="#059669" />
-              </View>
-              <Text style={styles.overviewNumber}>
-                {dashboardData.overview_stats.total_users}
-              </Text>
-              <Text style={styles.overviewLabel}>Users</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.overviewCard}
-              onPress={() => navigateTo("/(owner)/monitoring")}
-            >
-              <View style={styles.overviewIconContainer}>
-                <Ionicons name="menu" size={20} color="#D97706" />
-              </View>
-              <Text style={styles.overviewNumber}>
-                {dashboardData.overview_stats.total_menu_items}
-              </Text>
-              <Text style={styles.overviewLabel}>Menu Items</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Monitoring Stats */}
+        {/* System Overview */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="eye" size={18} color="#2563EB" />
+            <Ionicons name="grid" size={18} color="#374151" />
+            <Text style={styles.sectionTitle}>System Overview</Text>
+          </View>
+          <View style={styles.overviewGrid}>
+            <StatCard
+              title="SPPG"
+              value={dashboardData.overview_stats.total_sppg.toString()}
+              icon="business"
+              color="#3B82F6"
+              onPress={() => navigateTo("/(owner)/monitoring/sppg_masters")}
+            />
+            <StatCard
+              title="Schools"
+              value={dashboardData.overview_stats.total_schools.toString()}
+              icon="school"
+              color="#8B5CF6"
+              onPress={() => navigateTo("/(owner)/monitoring/schools")}
+            />
+            <StatCard
+              title="Users"
+              value={dashboardData.overview_stats.total_users.toString()}
+              icon="people"
+              color="#10B981"
+              onPress={() => navigateTo("/(owner)/monitoring/users")}
+            />
+            <StatCard
+              title="Menu Items"
+              value={dashboardData.overview_stats.total_menu_items.toString()}
+              icon="restaurant"
+              color="#F59E0B"
+              onPress={() => navigateTo("/(owner)/monitoring/menu_items")}
+            />
+          </View>
+        </View>
+
+        {/* Data Monitoring Stats */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="server" size={18} color="#374151" />
             <Text style={styles.sectionTitle}>Data Monitoring</Text>
-            <TouchableOpacity onPress={() => navigateTo("/(owner)/monitoring")}>
-              <Text style={styles.viewAllText}>View Details →</Text>
+            <TouchableOpacity
+              onPress={() => navigateTo("/(owner)/monitoring")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.viewAllText}>View All →</Text>
             </TouchableOpacity>
           </View>
-
           <View style={styles.monitoringStats}>
-            <TouchableOpacity
-              style={styles.monitoringStatCard}
-              onPress={() => navigateTo("/(owner)/monitoring")}
-            >
-              <Ionicons name="grid" size={24} color="#2563EB" />
-              <Text style={styles.monitoringStatNumber}>
+            <View style={styles.monitoringStat}>
+              <Ionicons name="grid-outline" size={20} color="#2563EB" />
+              <Text style={styles.monitoringValue}>
                 {dashboardData.monitoring_stats.data_tables}
               </Text>
-              <Text style={styles.monitoringStatLabel}>Data Tables</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.monitoringStatCard}
-              onPress={() => navigateTo("/(owner)/audit/logs")}
-            >
-              <Ionicons name="server" size={24} color="#7C3AED" />
-              <Text style={styles.monitoringStatNumber}>
+              <Text style={styles.monitoringLabel}>Tables</Text>
+            </View>
+            <View style={styles.monitoringStat}>
+              <Ionicons
+                name="document-text-outline"
+                size={20}
+                color="#7C3AED"
+              />
+              <Text style={styles.monitoringValue}>
                 {dashboardData.monitoring_stats.total_records.toLocaleString()}
               </Text>
-              <Text style={styles.monitoringStatLabel}>Total Records</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.monitoringStatCard}
-              onPress={() => navigateTo("/(owner)/audit/history")}
-            >
-              <Ionicons name="git-compare" size={24} color="#059669" />
-              <Text style={styles.monitoringStatNumber}>
+              <Text style={styles.monitoringLabel}>Records</Text>
+            </View>
+            <View style={styles.monitoringStat}>
+              <Ionicons name="git-compare-outline" size={20} color="#10B981" />
+              <Text style={styles.monitoringValue}>
                 {dashboardData.monitoring_stats.recent_changes}
               </Text>
-              <Text style={styles.monitoringStatLabel}>Recent Changes</Text>
-            </TouchableOpacity>
+              <Text style={styles.monitoringLabel}>Changes</Text>
+            </View>
+            <View style={styles.monitoringStat}>
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={20}
+                color="#F59E0B"
+              />
+              <Text style={styles.monitoringValue}>
+                {dashboardData.monitoring_stats.audit_logs_today}
+              </Text>
+              <Text style={styles.monitoringLabel}>Audit Logs</Text>
+            </View>
           </View>
         </View>
 
@@ -466,288 +520,208 @@ export default function OwnerDashboard() {
           <View style={styles.sectionHeader}>
             <Ionicons name="pulse" size={18} color="#DC2626" />
             <Text style={styles.sectionTitle}>Real-time Status</Text>
-            <Ionicons name="time" size={14} color="#6B7280" />
-            <Text style={styles.timeAgoText}>Updated just now</Text>
+            <Ionicons name="time-outline" size={14} color="#6B7280" />
+            <Text style={styles.timeAgoText}>Just now</Text>
           </View>
 
           {/* Menu Status */}
-          <View style={styles.subSection}>
-            <View style={styles.subSectionHeader}>
-              <Text style={styles.subSectionTitle}>Menu Status</Text>
+          <View style={styles.statusSection}>
+            <View style={styles.statusHeader}>
+              <Text style={styles.statusTitle}>Menu Status</Text>
               <TouchableOpacity
                 onPress={() => navigateTo("/(owner)/monitoring/menus")}
+                activeOpacity={0.7}
               >
                 <Text style={styles.viewDetailsText}>View →</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.statsRow}>
-              <StatCard
-                title="Pending"
-                value={dashboardData.real_time_stats.menu_status.pending.toString()}
-                icon="time"
-                color="#D97706"
-              />
-              <StatCard
-                title="In Production"
-                value={dashboardData.real_time_stats.menu_status.production.toString()}
-                icon="build"
-                color="#2563EB"
-              />
-            </View>
-            <View style={styles.statsRow}>
-              <StatCard
-                title="Approved"
-                value={dashboardData.real_time_stats.menu_status.approved.toString()}
-                icon="checkmark-circle"
-                color="#059669"
-              />
-              <StatCard
-                title="Rejected"
-                value={dashboardData.real_time_stats.menu_status.rejected.toString()}
-                icon="close-circle"
-                color="#DC2626"
-              />
+            <View style={styles.statusGrid}>
+              <View style={styles.statusItem}>
+                <View
+                  style={[styles.statusBadge, { backgroundColor: "#FEF3C7" }]}
+                >
+                  <Text style={[styles.statusBadgeText, { color: "#D97706" }]}>
+                    {dashboardData.real_time_stats.menu_status.pending}
+                  </Text>
+                </View>
+                <Text style={styles.statusLabel}>Pending</Text>
+              </View>
+              <View style={styles.statusItem}>
+                <View
+                  style={[styles.statusBadge, { backgroundColor: "#DBEAFE" }]}
+                >
+                  <Text style={[styles.statusBadgeText, { color: "#2563EB" }]}>
+                    {dashboardData.real_time_stats.menu_status.production}
+                  </Text>
+                </View>
+                <Text style={styles.statusLabel}>Production</Text>
+              </View>
+              <View style={styles.statusItem}>
+                <View
+                  style={[styles.statusBadge, { backgroundColor: "#D1FAE5" }]}
+                >
+                  <Text style={[styles.statusBadgeText, { color: "#059669" }]}>
+                    {dashboardData.real_time_stats.menu_status.approved}
+                  </Text>
+                </View>
+                <Text style={styles.statusLabel}>Approved</Text>
+              </View>
+              <View style={styles.statusItem}>
+                <View
+                  style={[styles.statusBadge, { backgroundColor: "#FEE2E2" }]}
+                >
+                  <Text style={[styles.statusBadgeText, { color: "#DC2626" }]}>
+                    {dashboardData.real_time_stats.menu_status.rejected}
+                  </Text>
+                </View>
+                <Text style={styles.statusLabel}>Rejected</Text>
+              </View>
             </View>
           </View>
 
           {/* Distribution Status */}
-          <View style={styles.subSection}>
-            <View style={styles.subSectionHeader}>
-              <Text style={styles.subSectionTitle}>Distribution Status</Text>
+          <View style={styles.statusSection}>
+            <View style={styles.statusHeader}>
+              <Text style={styles.statusTitle}>Distribution Status</Text>
               <TouchableOpacity
                 onPress={() =>
                   navigateTo("/(owner)/monitoring/school_menu_distribution")
                 }
+                activeOpacity={0.7}
               >
                 <Text style={styles.viewDetailsText}>View →</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.statsRow}>
-              <StatCard
-                title="Pending"
-                value={dashboardData.real_time_stats.distribution_status.pending.toString()}
-                icon="hourglass"
-                color="#D97706"
-              />
-              <StatCard
-                title="Delivered"
-                value={dashboardData.real_time_stats.distribution_status.delivered.toString()}
-                icon="car"
-                color="#2563EB"
-              />
-            </View>
-            <View style={styles.statsRow}>
-              <StatCard
-                title="Received"
-                value={dashboardData.real_time_stats.distribution_status.received.toString()}
-                icon="checkmark-done"
-                color="#059669"
-              />
-              <StatCard
-                title="Problematic"
-                value={dashboardData.real_time_stats.distribution_status.problematic.toString()}
-                icon="warning"
-                color="#DC2626"
-              />
-            </View>
-          </View>
-
-          {/* QR Code Activity */}
-          <View style={styles.subSection}>
-            <View style={styles.subSectionHeader}>
-              <Text style={styles.subSectionTitle}>QR Code Activity</Text>
-              <TouchableOpacity
-                onPress={() => navigateTo("/(owner)/monitoring/qr_codes")}
-              >
-                <Text style={styles.viewDetailsText}>Monitor →</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.statsRow}>
-              <StatCard
-                title="Generated Today"
-                value={dashboardData.real_time_stats.qr_activity.generated_today.toString()}
-                icon="qr-code"
-                color="#7C3AED"
-              />
-              <StatCard
-                title="Used Today"
-                value={dashboardData.real_time_stats.qr_activity.used_today.toString()}
-                icon="checkmark-circle"
-                color="#059669"
-              />
-            </View>
-            <View style={styles.qrMetrics}>
-              <View style={styles.qrMetric}>
-                <Text style={styles.qrMetricLabel}>QR Usage Rate</Text>
-                <Text style={styles.qrMetricValue}>
-                  {Math.round(
-                    (dashboardData.real_time_stats.qr_activity.used_today /
-                      dashboardData.real_time_stats.qr_activity
-                        .generated_today) *
-                      100,
-                  )}
-                  %
-                </Text>
-              </View>
-              <View style={styles.qrMetric}>
-                <Text style={styles.qrMetricLabel}>Active QR Codes</Text>
-                <Text style={styles.qrMetricValue}>
-                  {dashboardData.real_time_stats.qr_activity.total_active}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Problem Reports */}
-          <View style={styles.subSection}>
-            <View style={styles.subSectionHeader}>
-              <Text style={styles.subSectionTitle}>Problem Reports</Text>
-              <TouchableOpacity
-                onPress={() =>
-                  navigateTo("/(owner)/monitoring/problem_reports")
-                }
-              >
-                <Text style={styles.viewDetailsText}>View →</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.problemStats}>
-              <View style={styles.problemStat}>
+            <View style={styles.statusGrid}>
+              <View style={styles.statusItem}>
                 <View
-                  style={[styles.problemIcon, { backgroundColor: "#FEF3C7" }]}
+                  style={[styles.statusBadge, { backgroundColor: "#FEF3C7" }]}
                 >
-                  <Ionicons name="time" size={16} color="#D97706" />
+                  <Text style={[styles.statusBadgeText, { color: "#D97706" }]}>
+                    {dashboardData.real_time_stats.distribution_status.pending}
+                  </Text>
                 </View>
-                <Text style={styles.problemNumber}>
-                  {dashboardData.real_time_stats.problems_status.pending}
-                </Text>
-                <Text style={styles.problemLabel}>Pending</Text>
+                <Text style={styles.statusLabel}>Pending</Text>
               </View>
-              <View style={styles.problemStat}>
+              <View style={styles.statusItem}>
                 <View
-                  style={[styles.problemIcon, { backgroundColor: "#DBEAFE" }]}
+                  style={[styles.statusBadge, { backgroundColor: "#DBEAFE" }]}
                 >
-                  <Ionicons name="search" size={16} color="#2563EB" />
+                  <Text style={[styles.statusBadgeText, { color: "#2563EB" }]}>
+                    {
+                      dashboardData.real_time_stats.distribution_status
+                        .delivered
+                    }
+                  </Text>
                 </View>
-                <Text style={styles.problemNumber}>
-                  {dashboardData.real_time_stats.problems_status.investigating}
-                </Text>
-                <Text style={styles.problemLabel}>Investigating</Text>
+                <Text style={styles.statusLabel}>Delivered</Text>
               </View>
-              <View style={styles.problemStat}>
+              <View style={styles.statusItem}>
                 <View
-                  style={[styles.problemIcon, { backgroundColor: "#D1FAE5" }]}
+                  style={[styles.statusBadge, { backgroundColor: "#D1FAE5" }]}
                 >
-                  <Ionicons name="checkmark" size={16} color="#059669" />
+                  <Text style={[styles.statusBadgeText, { color: "#059669" }]}>
+                    {dashboardData.real_time_stats.distribution_status.received}
+                  </Text>
                 </View>
-                <Text style={styles.problemNumber}>
-                  {dashboardData.real_time_stats.problems_status.resolved}
-                </Text>
-                <Text style={styles.problemLabel}>Resolved</Text>
+                <Text style={styles.statusLabel}>Received</Text>
               </View>
-              <View style={styles.problemStat}>
+              <View style={styles.statusItem}>
                 <View
-                  style={[styles.problemIcon, { backgroundColor: "#FEE2E2" }]}
+                  style={[styles.statusBadge, { backgroundColor: "#FEE2E2" }]}
                 >
-                  <Ionicons name="close" size={16} color="#DC2626" />
+                  <Text style={[styles.statusBadgeText, { color: "#DC2626" }]}>
+                    {
+                      dashboardData.real_time_stats.distribution_status
+                        .problematic
+                    }
+                  </Text>
                 </View>
-                <Text style={styles.problemNumber}>
-                  {dashboardData.real_time_stats.problems_status.rejected}
-                </Text>
-                <Text style={styles.problemLabel}>Rejected</Text>
+                <Text style={styles.statusLabel}>Problematic</Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* Top Performers */}
+        {/* Quick Actions */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="trending-up" size={18} color="#059669" />
-            <Text style={styles.sectionTitle}>Top Performers</Text>
+            <Ionicons name="flash" size={18} color="#2563EB" />
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+          </View>
+          <View style={styles.quickActions}>
             <TouchableOpacity
-              onPress={() => navigateTo("/(owner)/reports/sppg-performance")}
+              style={styles.quickAction}
+              onPress={() => navigateTo("/(owner)/monitoring")}
+              activeOpacity={0.7}
             >
-              <Text style={styles.viewAllText}>Compare →</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* SPPG Performance */}
-          <View style={styles.performerSection}>
-            <Text style={styles.performerTitle}>SPPG Efficiency</Text>
-            {dashboardData.top_performers.sppg_efficiency.map((sppg, index) => (
-              <TouchableOpacity
-                key={sppg.id}
-                style={styles.performerItem}
-                onPress={() => navigateTo(`/(owner)/sppg?view=${sppg.id}`)}
+              <View
+                style={[styles.quickActionIcon, { backgroundColor: "#EFF6FF" }]}
               >
-                <View style={styles.performerRank}>
-                  <Text style={styles.rankText}>#{index + 1}</Text>
-                </View>
-                <View style={styles.performerInfo}>
-                  <Text style={styles.performerName}>{sppg.name}</Text>
-                  <Text style={styles.performerDetails}>
-                    {sppg.menus_completed} menus • {sppg.distribution_rate}%
-                    rate
-                  </Text>
-                </View>
-                <View style={styles.performerMetric}>
-                  <Text style={styles.metricValue}>{sppg.efficiency}%</Text>
-                  <Text style={styles.metricLabel}>Efficiency</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Schools Performance */}
-          <View style={styles.performerSection}>
-            <Text style={styles.performerTitle}>Top Receiving Schools</Text>
-            {dashboardData.top_performers.schools_receiving.map(
-              (school, index) => (
-                <TouchableOpacity
-                  key={school.id}
-                  style={styles.performerItem}
-                  onPress={() =>
-                    navigateTo(`/(owner)/schools?view=${school.id}`)
-                  }
-                >
-                  <View style={styles.performerRank}>
-                    <Text style={styles.rankText}>#{index + 1}</Text>
-                  </View>
-                  <View style={styles.performerInfo}>
-                    <Text style={styles.performerName}>{school.name}</Text>
-                    <Text style={styles.performerDetails}>
-                      {school.received_count} received • {school.problem_rate}%
-                      problem rate
-                    </Text>
-                  </View>
-                  <View style={styles.performerMetric}>
-                    <Text style={styles.metricValue}>
-                      {school.on_time_rate}%
-                    </Text>
-                    <Text style={styles.metricLabel}>On Time</Text>
-                  </View>
-                </TouchableOpacity>
-              ),
-            )}
+                <Ionicons name="eye" size={20} color="#2563EB" />
+              </View>
+              <Text style={styles.quickActionText}>Monitor All</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => navigateTo("/(owner)/reports")}
+              activeOpacity={0.7}
+            >
+              <View
+                style={[styles.quickActionIcon, { backgroundColor: "#F0FDF4" }]}
+              >
+                <Ionicons name="analytics" size={20} color="#059669" />
+              </View>
+              <Text style={styles.quickActionText}>Reports</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => navigateTo("/(owner)/settings")}
+              activeOpacity={0.7}
+            >
+              <View
+                style={[styles.quickActionIcon, { backgroundColor: "#FEFCE8" }]}
+              >
+                <Ionicons name="settings" size={20} color="#D97706" />
+              </View>
+              <Text style={styles.quickActionText}>Settings</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => navigateTo("/(owner)/export")}
+              activeOpacity={0.7}
+            >
+              <View
+                style={[styles.quickActionIcon, { backgroundColor: "#F5F3FF" }]}
+              >
+                <Ionicons name="download" size={20} color="#7C3AED" />
+              </View>
+              <Text style={styles.quickActionText}>Export</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
         {/* Recent Activities */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="list" size={18} color="#2563EB" />
+            <Ionicons name="time" size={18} color="#374151" />
             <Text style={styles.sectionTitle}>Recent Activities</Text>
-            <TouchableOpacity onPress={() => navigateTo("/(owner)/audit")}>
+            <TouchableOpacity
+              onPress={() => navigateTo("/(owner)/monitoring/activity_logs")}
+              activeOpacity={0.7}
+            >
               <Text style={styles.viewAllText}>View All →</Text>
             </TouchableOpacity>
           </View>
-
           <View style={styles.activitiesList}>
-            {dashboardData.recent_activities.map((activity) => (
+            {dashboardData.recent_activities.slice(0, 3).map((activity) => (
               <TouchableOpacity
                 key={activity.id}
                 style={styles.activityItem}
-                onPress={() => navigateTo("/(owner)/audit/logs")}
+                onPress={() =>
+                  navigateTo(`/(owner)/monitoring/${activity.table_name}`)
+                }
+                activeOpacity={0.7}
               >
                 <View
                   style={[
@@ -762,17 +736,12 @@ export default function OwnerDashboard() {
                   />
                 </View>
                 <View style={styles.activityContent}>
-                  <Text style={styles.activityDescription}>
+                  <Text style={styles.activityDescription} numberOfLines={2}>
                     {activity.description}
                   </Text>
                   <View style={styles.activityMeta}>
-                    {activity.table_name && (
-                      <Text style={styles.activityTable}>
-                        {activity.table_name}
-                      </Text>
-                    )}
                     <Text style={styles.activityUser}>{activity.user}</Text>
-                    <Text style={styles.activityTime}>{activity.time}</Text>
+                    <Text style={styles.activityTime}>• {activity.time}</Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -780,48 +749,25 @@ export default function OwnerDashboard() {
           </View>
         </View>
 
-        {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigateTo("/(owner)/monitoring")}
-          >
-            <Ionicons name="desktop" size={20} color="#2563EB" />
-            <Text style={styles.quickActionText}>Monitor All</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigateTo("/(owner)/export/json")}
-          >
-            <Ionicons name="download" size={20} color="#059669" />
-            <Text style={styles.quickActionText}>Export Data</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigateTo("/(owner)/reports/period")}
-          >
-            <Ionicons name="analytics" size={20} color="#7C3AED" />
-            <Text style={styles.quickActionText}>Reports</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Footer */}
         <View style={styles.footer}>
           <View style={styles.footerInfo}>
-            <Ionicons name="information-circle" size={14} color="#6B7280" />
+            <Ionicons
+              name="information-circle-outline"
+              size={14}
+              color="#9CA3AF"
+            />
             <Text style={styles.footerText}>
               Monitoring {dashboardData.monitoring_stats.data_tables} tables
-              with{" "}
-              {dashboardData.monitoring_stats.total_records.toLocaleString()}{" "}
-              records
             </Text>
           </View>
           <TouchableOpacity
-            style={styles.refreshBtn}
+            style={styles.refreshButton}
             onPress={loadDashboardData}
+            activeOpacity={0.7}
           >
             <Ionicons name="refresh" size={14} color="#2563EB" />
-            <Text style={styles.refreshText}>Refresh Data</Text>
+            <Text style={styles.refreshText}>Refresh</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -834,91 +780,160 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F9FAFB",
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#F9FAFB",
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: "#6B7280",
-  },
-  header: {
+  topHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    padding: 20,
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
     backgroundColor: "white",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
   },
-  welcomeText: {
-    fontSize: 22,
-    fontWeight: "700",
+  userInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  userAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  userInitial: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: "600",
     color: "#111827",
+    marginBottom: 2,
   },
-  subtitleText: {
+  userRole: {
     fontSize: 13,
     color: "#6B7280",
-    marginTop: 2,
+    fontWeight: "500",
   },
   headerActions: {
-    alignItems: "flex-end",
-    gap: 8,
-  },
-  monitoringBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#EFF6FF",
-    paddingHorizontal: 12,
+    gap: 12,
+  },
+  liveIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
     gap: 6,
-  },
-  monitoringBtnText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#2563EB",
-  },
-  liveBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FEF2F2",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 4,
   },
   liveDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#DC2626",
+    backgroundColor: "#10B981",
   },
   liveText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "600",
-    color: "#DC2626",
+    color: "#10B981",
   },
-  overviewSection: {
+  timeText: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginLeft: 4,
+  },
+  logoutButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FEF2F2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dashboardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    backgroundColor: "white",
+  },
+  welcomeText: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111827",
+    letterSpacing: -0.5,
+  },
+  subtitleText: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginTop: 4,
+  },
+  monitorAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
+  },
+  monitorAllText: {
+    fontSize: 13,
+    color: "#2563EB",
+    fontWeight: "600",
+  },
+  section: {
     backgroundColor: "white",
     marginHorizontal: 20,
-    marginTop: 12,
+    marginTop: 16,
     borderRadius: 16,
     padding: 20,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    gap: 8,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
-    marginBottom: 16,
+    flex: 1,
+  },
+  viewAllText: {
+    fontSize: 12,
+    color: "#2563EB",
+    fontWeight: "600",
+  },
+  timeAgoText: {
+    fontSize: 12,
+    color: "#6B7280",
   },
   overviewGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
   },
-  overviewCard: {
+  statCard: {
     width: "48%",
     backgroundColor: "#F9FAFB",
     padding: 16,
@@ -928,203 +943,116 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
   },
-  overviewIconContainer: {
+  statIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "white",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
   },
-  overviewNumber: {
+  statValue: {
     fontSize: 20,
-    fontWeight: "bold",
+    fontWeight: "700",
     color: "#111827",
     marginBottom: 4,
   },
-  overviewLabel: {
+  statTitle: {
     fontSize: 12,
     color: "#6B7280",
-  },
-  section: {
-    backgroundColor: "white",
-    marginHorizontal: 20,
-    marginTop: 16,
-    borderRadius: 16,
-    padding: 20,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-    gap: 8,
-  },
-  viewAllText: {
-    fontSize: 12,
-    color: "#2563EB",
-    fontWeight: "600",
-  },
-  timeAgoText: {
-    fontSize: 11,
-    color: "#6B7280",
+    fontWeight: "500",
   },
   monitoringStats: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
   },
-  monitoringStatCard: {
+  monitoringStat: {
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    padding: 16,
-    borderRadius: 12,
     flex: 1,
-    marginHorizontal: 4,
   },
-  monitoringStatNumber: {
-    fontSize: 20,
-    fontWeight: "bold",
+  monitoringValue: {
+    fontSize: 18,
+    fontWeight: "700",
     color: "#111827",
     marginTop: 8,
     marginBottom: 4,
   },
-  monitoringStatLabel: {
+  monitoringLabel: {
     fontSize: 11,
     color: "#6B7280",
-    textAlign: "center",
+    fontWeight: "500",
   },
-  subSection: {
-    marginBottom: 24,
+  statusSection: {
+    marginBottom: 20,
   },
-  subSectionHeader: {
+  statusHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
   },
-  subSectionTitle: {
+  statusTitle: {
     fontSize: 14,
     fontWeight: "600",
     color: "#374151",
   },
   viewDetailsText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#2563EB",
     fontWeight: "600",
   },
-  statsRow: {
+  statusGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
-    marginBottom: 12,
   },
-  qrMetrics: {
-    flexDirection: "row",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
-  },
-  qrMetric: {
-    flex: 1,
+  statusItem: {
+    width: "48%",
     alignItems: "center",
   },
-  qrMetricLabel: {
-    fontSize: 11,
-    color: "#6B7280",
-    marginBottom: 4,
-  },
-  qrMetricValue: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#111827",
-  },
-  problemStats: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 8,
-    padding: 16,
-  },
-  problemStat: {
-    alignItems: "center",
-    flex: 1,
-  },
-  problemIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  statusBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
   },
-  problemNumber: {
+  statusBadgeText: {
     fontSize: 16,
-    fontWeight: "bold",
-    color: "#111827",
-    marginBottom: 2,
+    fontWeight: "700",
   },
-  problemLabel: {
-    fontSize: 10,
+  statusLabel: {
+    fontSize: 12,
     color: "#6B7280",
-  },
-  performerSection: {
-    marginBottom: 20,
-  },
-  performerTitle: {
-    fontSize: 13,
     fontWeight: "500",
-    color: "#374151",
-    marginBottom: 12,
   },
-  performerItem: {
+  quickActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  quickAction: {
+    width: "48%",
     alignItems: "center",
     backgroundColor: "#F9FAFB",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
-  performerRank: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#E5E7EB",
+  quickActionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginBottom: 8,
   },
-  rankText: {
-    fontSize: 11,
-    fontWeight: "bold",
-    color: "#374151",
-  },
-  performerInfo: {
-    flex: 1,
-  },
-  performerName: {
+  quickActionText: {
     fontSize: 13,
-    fontWeight: "500",
-    color: "#111827",
-    marginBottom: 2,
-  },
-  performerDetails: {
-    fontSize: 11,
-    color: "#6B7280",
-  },
-  performerMetric: {
-    alignItems: "flex-end",
-  },
-  metricValue: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#059669",
-  },
-  metricLabel: {
-    fontSize: 10,
-    color: "#6B7280",
+    fontWeight: "600",
+    color: "#374151",
   },
   activitiesList: {
     gap: 8,
@@ -1134,7 +1062,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 12,
     backgroundColor: "#F9FAFB",
-    borderRadius: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   activityIcon: {
     width: 36,
@@ -1151,54 +1081,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#374151",
     marginBottom: 4,
+    lineHeight: 18,
   },
   activityMeta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-  },
-  activityTable: {
-    fontSize: 10,
-    color: "#2563EB",
-    backgroundColor: "#EFF6FF",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    gap: 6,
   },
   activityUser: {
-    fontSize: 10,
+    fontSize: 11,
     color: "#6B7280",
+    fontWeight: "500",
   },
   activityTime: {
-    fontSize: 10,
+    fontSize: 11,
     color: "#9CA3AF",
-  },
-  quickActions: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 12,
-  },
-  quickAction: {
-    flex: 1,
-    alignItems: "center",
-    backgroundColor: "white",
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  quickActionText: {
-    fontSize: 12,
-    color: "#374151",
-    marginTop: 8,
-    fontWeight: "500",
   },
   footer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     backgroundColor: "white",
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
@@ -1210,20 +1114,20 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   footerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#9CA3AF",
   },
-  refreshBtn: {
+  refreshButton: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#EFF6FF",
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: 8,
     gap: 4,
   },
   refreshText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#2563EB",
     fontWeight: "600",
   },

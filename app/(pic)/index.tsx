@@ -1,4 +1,6 @@
 // app/scanner.tsx
+
+import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
 import {
   BarcodeScanningResult,
@@ -18,35 +20,84 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "../..//context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 
-interface ScanData {
-  type: string;
-  data: string;
+// Interface untuk data hasil scan
+interface ScanResult {
+  success: boolean;
+  message: string;
+  data: {
+    qr_code: {
+      id: string;
+      is_used: boolean;
+      used_at: string;
+      scanned_at: string;
+    };
+    distribution: {
+      id: string;
+      school: {
+        id: string;
+        name: string;
+        address: string;
+      };
+      menu: {
+        id: string;
+        menu_code: string;
+        menu_name: string;
+        scheduled_date: string;
+        sppg: {
+          sppg_code: string;
+          sppg_name: string;
+          phone_number: string;
+        };
+      };
+      allocated_portion: number;
+      current_received_portion: number;
+      received_status: string;
+      received_condition: string;
+    };
+  };
 }
 
-interface ScanMetadata {
-  menu?: string;
-  max_consumption?: number;
-  pic_name?: string;
-  notes?: string;
+// Interface untuk laporan masalah
+interface ProblemReport {
+  distribution_id: string;
+  problem_type: string;
+  description: string;
+  evidence_images: string[];
 }
 
-const API_URL = "https://niftiest-longanamous-dreama.ngrok-free.dev/api"; // Ganti dengan URL backend Anda
+// Interface untuk status penerimaan
+interface ReceiveStatusUpdate {
+  received_status: "pending" | "accepted" | "rejected";
+  received_portion?: number;
+  received_condition?: string;
+  received_notes?: string;
+}
+
+const API_URL = process.env.API_URL_SERVER;
 
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState<boolean>(false);
-  const [scanData, setScanData] = useState<ScanData | null>(null);
+  const [scanData, setScanData] = useState<string>("");
   const [showResult, setShowResult] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
 
-  // Form data untuk metadata
-  const [scanType, setScanType] = useState<string>("terima");
-  const [menu, setMenu] = useState<string>("");
-  const [maxConsumption, setMaxConsumption] = useState<string>("");
-  const [picName, setPicName] = useState<string>("");
-  const [notes, setNotes] = useState<string>("");
+  // State untuk form
+  const [receivedStatus, setReceivedStatus] = useState<
+    "pending" | "accepted" | "rejected"
+  >("accepted");
+  const [receivedPortion, setReceivedPortion] = useState<string>("");
+  const [receivedCondition, setReceivedCondition] = useState<string>("normal");
+  const [receivedNotes, setReceivedNotes] = useState<string>("");
+
+  // State untuk laporan masalah
+  const [showProblemReport, setShowProblemReport] = useState<boolean>(false);
+  const [problemType, setProblemType] = useState<string>("quality_issue");
+  const [problemDescription, setProblemDescription] = useState<string>("");
+  const [submittingStatus, setSubmittingStatus] = useState<boolean>(false);
 
   const { user, logout, token } = useAuth();
   const router = useRouter();
@@ -57,57 +108,19 @@ export default function ScannerScreen() {
     }
   }, [permission]);
 
-  const handleBarCodeScanned = ({
-    type,
-    data,
-  }: BarcodeScanningResult): void => {
+  const handleBarCodeScanned = ({ data }: BarcodeScanningResult): void => {
     setScanned(true);
-    setScanData({ type, data });
-    setShowResult(true);
-
-    // Reset form
-    setScanType("terima");
-    setMenu("");
-    setMaxConsumption("");
-    setPicName("");
-    setNotes("");
+    setScanData(data);
+    handleScanQRCode(data);
   };
 
-  const resetScanner = (): void => {
-    setScanned(false);
-    setScanData(null);
-    setShowResult(false);
-    setScanType("terima");
-    setMenu("");
-    setMaxConsumption("");
-    setPicName("");
-    setNotes("");
-  };
-
-  const handleSave = async (): Promise<void> => {
-    if (!scanData?.data) {
-      Alert.alert("Error", "Tidak ada data barcode");
-      return;
-    }
-
+  const handleScanQRCode = async (qrCodeData: string): Promise<void> => {
     setLoading(true);
     try {
-      // Prepare metadata
-      const metadata: ScanMetadata = {};
-      if (menu) metadata.menu = menu;
-      if (maxConsumption) metadata.max_consumption = parseInt(maxConsumption);
-      if (picName) metadata.pic_name = picName;
-      if (notes) metadata.notes = notes;
-
-      // Send to backend
       const response = await axios.post(
-        `${API_URL}/scan`,
+        `${API_URL}/pic/scan`,
         {
-          barcode: scanData.data,
-          scan_type: scanType,
-          scanner_id: `mobile:${user?.id}`,
-          location: user?.sppg_zone || "Unknown",
-          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+          qr_code_data: qrCodeData,
         },
         {
           headers: {
@@ -117,36 +130,157 @@ export default function ScannerScreen() {
       );
 
       if (response.data.success) {
-        Alert.alert(
-          "Berhasil!",
-          response.data.message || "Data berhasil disimpan",
-          [
-            {
-              text: "OK",
-              onPress: resetScanner,
-            },
-          ],
-        );
+        setScanResult(response.data);
+        setShowResult(true);
+
+        // Set default values
+        if (response.data.data?.distribution) {
+          const dist = response.data.data.distribution;
+          setReceivedPortion(dist.allocated_portion.toString());
+          setReceivedCondition(dist.received_condition || "normal");
+        }
       } else {
-        throw new Error(response.data.error || "Gagal menyimpan data");
+        Alert.alert("Error", response.data.error || "QR code tidak valid");
+        resetScanner();
       }
-    } catch (error) {
-      console.error("Save scan error:", error);
-
-      let errorMessage = "Terjadi kesalahan saat menyimpan";
-      if (axios.isAxiosError(error)) {
-        errorMessage = error.response?.data?.error || error.message;
-      }
-
-      Alert.alert("Error", errorMessage);
+    } catch (error: any) {
+      console.error("Scan error:", error);
+      Alert.alert(
+        "Error",
+        error.response?.data?.error || "Gagal memproses QR code",
+      );
+      resetScanner();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resetScanner = (): void => {
+    setScanned(false);
+    setScanData("");
+    setShowResult(false);
+    setScanResult(null);
+    setReceivedStatus("accepted");
+    setReceivedPortion("");
+    setReceivedCondition("normal");
+    setReceivedNotes("");
+    setShowProblemReport(false);
+    setProblemType("quality_issue");
+    setProblemDescription("");
+  };
+
+  const handleConfirmReceipt = async (): Promise<void> => {
+    if (!scanResult?.data?.distribution?.id) {
+      Alert.alert("Error", "Data distribusi tidak ditemukan");
+      return;
+    }
+
+    setSubmittingStatus(true);
+    try {
+      const updateData: ReceiveStatusUpdate = {
+        received_status: receivedStatus,
+        received_notes: receivedNotes,
+      };
+
+      if (receivedPortion) {
+        updateData.received_portion = parseInt(receivedPortion);
+      }
+
+      if (receivedCondition) {
+        updateData.received_condition = receivedCondition;
+      }
+
+      const response = await axios.put(
+        `${API_URL}/pic/distribution/${scanResult.data.distribution.id}/status`,
+        updateData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (response.data.success) {
+        Alert.alert("Berhasil!", "Status penerimaan berhasil diperbarui", [
+          {
+            text: "OK",
+            onPress: resetScanner,
+          },
+        ]);
+      }
+    } catch (error: any) {
+      console.error("Update status error:", error);
+      Alert.alert(
+        "Error",
+        error.response?.data?.error || "Gagal memperbarui status",
+      );
+    } finally {
+      setSubmittingStatus(false);
+    }
+  };
+
+  const handleReportProblem = async (): Promise<void> => {
+    if (!scanResult?.data?.distribution?.id) {
+      Alert.alert("Error", "Data distribusi tidak ditemukan");
+      return;
+    }
+
+    if (!problemDescription.trim()) {
+      Alert.alert("Error", "Deskripsi masalah harus diisi");
+      return;
+    }
+
+    setSubmittingStatus(true);
+    try {
+      const problemReport: ProblemReport = {
+        distribution_id: scanResult.data.distribution.id,
+        problem_type: problemType,
+        description: problemDescription,
+        evidence_images: [], // Implement upload image if needed
+      };
+
+      const response = await axios.post(
+        `${API_URL}/pic/problems/report`,
+        problemReport,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (response.data.success) {
+        Alert.alert("Berhasil!", "Laporan masalah berhasil dibuat", [
+          {
+            text: "OK",
+            onPress: resetScanner,
+          },
+        ]);
+      }
+    } catch (error: any) {
+      console.error("Report problem error:", error);
+      Alert.alert(
+        "Error",
+        error.response?.data?.error || "Gagal membuat laporan",
+      );
+    } finally {
+      setSubmittingStatus(false);
     }
   };
 
   const handleLogout = async () => {
     await logout();
     router.replace("/login");
+  };
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("id-ID", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
   };
 
   if (!permission) {
@@ -160,9 +294,10 @@ export default function ScannerScreen() {
   if (!permission.granted) {
     return (
       <View style={styles.permissionContainer}>
+        <Ionicons name="camera-outline" size={64} color="#2563EB" />
         <Text style={styles.permissionTitle}>Izin Kamera Diperlukan</Text>
         <Text style={styles.permissionText}>
-          Aplikasi memerlukan akses kamera untuk scan barcode
+          Aplikasi memerlukan akses kamera untuk scan QR code
         </Text>
         <TouchableOpacity
           style={styles.permissionButton}
@@ -180,163 +315,407 @@ export default function ScannerScreen() {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <View>
-            <Text style={styles.headerTitle}>Scanner SPPG</Text>
+            <Text style={styles.headerTitle}>Scanner PIC Sekolah</Text>
             <Text style={styles.headerSubtitle}>
-              {user?.name} • {user?.sppg_zone}
+              {user?.full_name || user?.username} • PIC Sekolah
             </Text>
           </View>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutButtonText}>Logout</Text>
+            <Ionicons name="log-out-outline" size={20} color="white" />
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Camera View */}
       <View style={styles.cameraContainer}>
-        <CameraView
-          style={styles.camera}
-          facing="back"
-          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-          barcodeScannerSettings={{
-            barcodeTypes: ["qr", "code128", "code39", "ean13", "ean8"],
-          }}
-        >
-          {/* Scanner Overlay */}
-          <View style={styles.overlay}>
-            <View style={styles.scanFrame} />
-            <View style={styles.instructionContainer}>
-              <Text style={styles.instructionText}>
-                Arahkan kamera ke barcode SPPG
-              </Text>
-              <Text style={styles.instructionSubtext}>
-                Format: SPPG-ZONE-SCHOOL_CODE
-              </Text>
+        {!showResult && (
+          <CameraView
+            style={styles.camera}
+            facing="back"
+            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+            barcodeScannerSettings={{
+              barcodeTypes: ["qr"],
+            }}
+          >
+            {/* Scanner Overlay */}
+            <View style={styles.overlay}>
+              <View style={styles.scanFrame}>
+                <View style={styles.cornerTL} />
+                <View style={styles.cornerTR} />
+                <View style={styles.cornerBL} />
+                <View style={styles.cornerBR} />
+              </View>
+              <View style={styles.instructionContainer}>
+                <Ionicons name="qr-code-outline" size={32} color="white" />
+                <Text style={styles.instructionText}>
+                  Arahkan kamera ke QR code distribusi
+                </Text>
+                <Text style={styles.instructionSubtext}>
+                  Format QR code distribusi makanan sekolah
+                </Text>
+              </View>
             </View>
+          </CameraView>
+        )}
+
+        {/* Loading Indicator */}
+        {loading && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#2563EB" />
+            <Text style={styles.loadingMessage}>Memproses QR code...</Text>
           </View>
-        </CameraView>
+        )}
       </View>
 
       {/* Scan Result Modal */}
       <Modal visible={showResult} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Hasil Scan</Text>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Hasil Scan QR Code</Text>
+              <TouchableOpacity onPress={resetScanner}>
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
 
             <ScrollView style={styles.resultScroll}>
-              {/* Barcode Info */}
-              <View style={styles.resultBox}>
-                <Text style={styles.resultLabel}>Barcode</Text>
-                <Text style={styles.resultValue}>{scanData?.data}</Text>
+              {/* Status Scan */}
+              <View style={styles.scanStatusCard}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={24}
+                  color="#10B981"
+                  style={styles.statusIcon}
+                />
+                <View>
+                  <Text style={styles.scanStatusTitle}>Scan Berhasil</Text>
+                  <Text style={styles.scanStatusSubtitle}>
+                    QR code valid dan terverifikasi
+                  </Text>
+                </View>
               </View>
 
-              <View style={styles.resultBox}>
-                <Text style={styles.resultLabel}>Type</Text>
-                <Text style={styles.resultValue}>{scanData?.type}</Text>
+              {/* Menu Information */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Informasi Menu</Text>
+                <View style={styles.infoCard}>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Kode Menu</Text>
+                    <Text style={styles.infoValue}>
+                      {scanResult?.data?.distribution?.menu?.menu_code}
+                    </Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Nama Menu</Text>
+                    <Text style={styles.infoValue}>
+                      {scanResult?.data?.distribution?.menu?.menu_name}
+                    </Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Tanggal</Text>
+                    <Text style={styles.infoValue}>
+                      {scanResult?.data?.distribution?.menu?.scheduled_date &&
+                        formatDate(
+                          scanResult.data.distribution.menu.scheduled_date,
+                        )}
+                    </Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Penyedia (SPPG)</Text>
+                    <Text style={styles.infoValue}>
+                      {scanResult?.data?.distribution?.menu?.sppg?.sppg_name}
+                    </Text>
+                  </View>
+                </View>
               </View>
 
-              {/* Scan Type Selection */}
-              <View style={styles.formSection}>
-                <Text style={styles.sectionTitle}>Tipe Scan *</Text>
-                <View style={styles.radioGroup}>
-                  {["terima", "produksi", "distribusi"].map((type) => (
-                    <TouchableOpacity
-                      key={type}
+              {/* Distribution Information */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Distribusi</Text>
+                <View style={styles.infoCard}>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Sekolah</Text>
+                    <Text style={styles.infoValue}>
+                      {scanResult?.data?.distribution?.school?.name}
+                    </Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Alokasi Porsi</Text>
+                    <Text style={styles.infoValue}>
+                      {scanResult?.data?.distribution?.allocated_portion} porsi
+                    </Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Status Terima</Text>
+                    <Text
                       style={[
-                        styles.radioButton,
-                        scanType === type && styles.radioButtonActive,
+                        styles.statusBadge,
+                        scanResult?.data?.distribution?.received_status ===
+                        "accepted"
+                          ? styles.statusSuccess
+                          : scanResult?.data?.distribution?.received_status ===
+                              "rejected"
+                            ? styles.statusError
+                            : styles.statusWarning,
                       ]}
-                      onPress={() => setScanType(type)}
                     >
-                      <Text
+                      {scanResult?.data?.distribution?.received_status}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Status Update Form */}
+              {!showProblemReport ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Konfirmasi Penerimaan</Text>
+
+                  {/* Status Selection */}
+                  <View style={styles.radioGroup}>
+                    {["accepted", "rejected"].map((status) => (
+                      <TouchableOpacity
+                        key={status}
                         style={[
-                          styles.radioText,
-                          scanType === type && styles.radioTextActive,
+                          styles.radioButton,
+                          receivedStatus === status && styles.radioButtonActive,
+                          status === "rejected" && styles.radioButtonRejected,
                         ]}
+                        onPress={() => setReceivedStatus(status as any)}
                       >
-                        {type.charAt(0).toUpperCase() + type.slice(1)}
-                      </Text>
+                        <Ionicons
+                          name={
+                            status === "accepted"
+                              ? "checkmark-circle"
+                              : "close-circle"
+                          }
+                          size={20}
+                          color={
+                            receivedStatus === status
+                              ? status === "accepted"
+                                ? "#10B981"
+                                : "#EF4444"
+                              : "#6B7280"
+                          }
+                        />
+                        <Text
+                          style={[
+                            styles.radioText,
+                            receivedStatus === status && styles.radioTextActive,
+                          ]}
+                        >
+                          {status === "accepted" ? "Terima" : "Tolak"}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Additional Fields for Accepted */}
+                  {receivedStatus === "accepted" && (
+                    <>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>
+                          Jumlah Porsi Diterima *
+                        </Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Masukkan jumlah porsi"
+                          value={receivedPortion}
+                          onChangeText={setReceivedPortion}
+                          keyboardType="numeric"
+                        />
+                      </View>
+
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Kondisi Makanan</Text>
+                        <View style={styles.radioGroupHorizontal}>
+                          {["normal", "slightly_damaged", "damaged"].map(
+                            (condition) => (
+                              <TouchableOpacity
+                                key={condition}
+                                style={[
+                                  styles.conditionButton,
+                                  receivedCondition === condition &&
+                                    styles.conditionButtonActive,
+                                ]}
+                                onPress={() => setReceivedCondition(condition)}
+                              >
+                                <Text
+                                  style={[
+                                    styles.conditionText,
+                                    receivedCondition === condition &&
+                                      styles.conditionTextActive,
+                                  ]}
+                                >
+                                  {condition === "normal"
+                                    ? "Normal"
+                                    : condition === "slightly_damaged"
+                                      ? "Sedikit Rusak"
+                                      : "Rusak"}
+                                </Text>
+                              </TouchableOpacity>
+                            ),
+                          )}
+                        </View>
+                      </View>
+                    </>
+                  )}
+
+                  {/* Notes for All Status */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Catatan</Text>
+                    <TextInput
+                      style={[styles.input, styles.textArea]}
+                      placeholder="Tambahkan catatan (opsional)"
+                      value={receivedNotes}
+                      onChangeText={setReceivedNotes}
+                      multiline
+                      numberOfLines={3}
+                    />
+                  </View>
+
+                  {/* Problem Report Link */}
+                  <TouchableOpacity
+                    style={styles.problemReportLink}
+                    onPress={() => setShowProblemReport(true)}
+                  >
+                    <Ionicons
+                      name="warning-outline"
+                      size={18}
+                      color="#F59E0B"
+                    />
+                    <Text style={styles.problemReportText}>
+                      Laporkan masalah pada makanan
+                    </Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color="#6B7280"
+                    />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                /* Problem Report Form */
+                <View style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <TouchableOpacity
+                      onPress={() => setShowProblemReport(false)}
+                      style={styles.backButton}
+                    >
+                      <Ionicons name="arrow-back" size={20} color="#2563EB" />
+                      <Text style={styles.backButtonText}>Kembali</Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
+                    <Text style={styles.sectionTitle}>Laporan Masalah</Text>
+                  </View>
 
-              {/* Optional Metadata */}
-              <View style={styles.formSection}>
-                <Text style={styles.sectionTitle}>
-                  Informasi Tambahan (Opsional)
-                </Text>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Jenis Masalah *</Text>
+                    <View style={styles.problemTypeGrid}>
+                      {[
+                        { id: "quality_issue", label: "Kualitas Rendah" },
+                        { id: "contamination", label: "Kontaminasi" },
+                        { id: "shortage", label: "Kekurangan Porsi" },
+                        { id: "damaged_packaging", label: "Kemasan Rusak" },
+                        { id: "expired", label: "Kedaluwarsa" },
+                        { id: "other", label: "Lainnya" },
+                      ].map((type) => (
+                        <TouchableOpacity
+                          key={type.id}
+                          style={[
+                            styles.problemTypeButton,
+                            problemType === type.id &&
+                              styles.problemTypeButtonActive,
+                          ]}
+                          onPress={() => setProblemType(type.id)}
+                        >
+                          <Text
+                            style={[
+                              styles.problemTypeText,
+                              problemType === type.id &&
+                                styles.problemTypeTextActive,
+                            ]}
+                          >
+                            {type.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Menu</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Contoh: Nasi Goreng"
-                    value={menu}
-                    onChangeText={setMenu}
-                  />
-                </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Deskripsi Masalah *</Text>
+                    <TextInput
+                      style={[styles.input, styles.textArea]}
+                      placeholder="Jelaskan masalah secara detail..."
+                      value={problemDescription}
+                      onChangeText={setProblemDescription}
+                      multiline
+                      numberOfLines={4}
+                    />
+                  </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Konsumsi Maksimal</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Contoh: 100"
-                    value={maxConsumption}
-                    onChangeText={setMaxConsumption}
-                    keyboardType="numeric"
-                  />
+                  <TouchableOpacity style={styles.photoButton}>
+                    <Ionicons name="camera-outline" size={20} color="#2563EB" />
+                    <Text style={styles.photoButtonText}>
+                      Tambahkan Foto Bukti
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>PIC Name</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Nama penanggung jawab"
-                    value={picName}
-                    onChangeText={setPicName}
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Catatan</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    placeholder="Tambahkan catatan..."
-                    value={notes}
-                    onChangeText={setNotes}
-                    multiline
-                    numberOfLines={3}
-                  />
-                </View>
-              </View>
+              )}
 
               {/* User Info */}
-              <View style={styles.userInfoBox}>
-                <Text style={styles.userInfoLabel}>Scanned by</Text>
-                <Text style={styles.userInfoName}>{user?.name}</Text>
-                <Text style={styles.userInfoZone}>
-                  Zone: {user?.sppg_zone || "N/A"}
-                </Text>
+              <View style={styles.userInfoCard}>
+                <Ionicons
+                  name="person-circle-outline"
+                  size={20}
+                  color="#2563EB"
+                />
+                <View style={styles.userInfoContent}>
+                  <Text style={styles.userInfoName}>
+                    {user?.full_name || user?.username}
+                  </Text>
+                  <Text style={styles.userInfoRole}>PIC Sekolah</Text>
+                  <Text style={styles.userInfoTime}>
+                    {new Date().toLocaleString("id-ID")}
+                  </Text>
+                </View>
               </View>
             </ScrollView>
 
+            {/* Action Buttons */}
             <View style={styles.buttonRow}>
               <TouchableOpacity
                 style={[styles.actionButton, styles.secondaryButton]}
                 onPress={resetScanner}
-                disabled={loading}
+                disabled={submittingStatus}
               >
                 <Text style={styles.secondaryButtonText}>Batal</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionButton, styles.primaryButton]}
-                onPress={handleSave}
-                disabled={loading}
+                onPress={
+                  showProblemReport ? handleReportProblem : handleConfirmReceipt
+                }
+                disabled={submittingStatus}
               >
-                {loading ? (
+                {submittingStatus ? (
                   <ActivityIndicator color="white" />
                 ) : (
-                  <Text style={styles.primaryButtonText}>Simpan</Text>
+                  <>
+                    <Ionicons
+                      name={
+                        showProblemReport ? "send-outline" : "checkmark-outline"
+                      }
+                      size={20}
+                      color="white"
+                      style={styles.buttonIcon}
+                    />
+                    <Text style={styles.primaryButtonText}>
+                      {showProblemReport
+                        ? "Kirim Laporan"
+                        : "Konfirmasi Penerimaan"}
+                    </Text>
+                  </>
                 )}
               </TouchableOpacity>
             </View>
@@ -370,31 +749,36 @@ const styles = StyleSheet.create({
   },
   permissionTitle: {
     color: "#1F2937",
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
-    marginBottom: 16,
+    marginTop: 16,
+    marginBottom: 8,
     textAlign: "center",
   },
   permissionText: {
     color: "#6B7280",
     textAlign: "center",
-    marginBottom: 24,
+    marginBottom: 32,
   },
   permissionButton: {
     backgroundColor: "#2563EB",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
     borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   permissionButtonText: {
     color: "white",
     fontWeight: "600",
+    fontSize: 16,
   },
   header: {
     backgroundColor: "#2563EB",
     paddingTop: 48,
     paddingBottom: 16,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   headerContent: {
     flexDirection: "row",
@@ -403,7 +787,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: "white",
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "bold",
   },
   headerSubtitle: {
@@ -413,16 +797,12 @@ const styles = StyleSheet.create({
   },
   logoutButton: {
     backgroundColor: "#1D4ED8",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  logoutButtonText: {
-    color: "white",
-    fontWeight: "500",
+    padding: 10,
+    borderRadius: 10,
   },
   cameraContainer: {
     flex: 1,
+    position: "relative",
   },
   camera: {
     flex: 1,
@@ -431,33 +811,84 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.3)",
   },
   scanFrame: {
-    width: 288,
-    height: 288,
-    borderWidth: 4,
-    borderColor: "white",
-    borderRadius: 24,
-    opacity: 0.5,
+    width: 280,
+    height: 280,
+    position: "relative",
+  },
+  cornerTL: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: 40,
+    height: 40,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: "#2563EB",
+  },
+  cornerTR: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 40,
+    height: 40,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderColor: "#2563EB",
+  },
+  cornerBL: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    width: 40,
+    height: 40,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: "#2563EB",
+  },
+  cornerBR: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 40,
+    height: 40,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderColor: "#2563EB",
   },
   instructionContainer: {
     backgroundColor: "rgba(0, 0, 0, 0.7)",
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    marginTop: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    marginTop: 40,
+    alignItems: "center",
+    gap: 8,
   },
   instructionText: {
     color: "white",
     textAlign: "center",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
   },
   instructionSubtext: {
     color: "#DBEAFE",
     textAlign: "center",
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: 14,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 16,
+  },
+  loadingMessage: {
+    color: "white",
+    fontSize: 16,
+    marginTop: 12,
   },
   modalOverlay: {
     flex: 1,
@@ -468,138 +899,323 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 24,
+    padding: 20,
     maxHeight: "90%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
   },
   modalTitle: {
     color: "#1F2937",
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
-    marginBottom: 16,
   },
   resultScroll: {
     maxHeight: "75%",
   },
-  resultBox: {
-    backgroundColor: "#F3F4F6",
+  scanStatusCard: {
+    backgroundColor: "#D1FAE5",
     padding: 16,
     borderRadius: 12,
-    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 20,
   },
-  resultLabel: {
-    color: "#6B7280",
-    fontSize: 12,
-    marginBottom: 4,
+  statusIcon: {
+    marginRight: 8,
   },
-  resultValue: {
-    color: "#1F2937",
+  scanStatusTitle: {
+    color: "#065F46",
+    fontSize: 16,
     fontWeight: "600",
+  },
+  scanStatusSubtitle: {
+    color: "#047857",
     fontSize: 14,
   },
-  formSection: {
-    marginTop: 16,
-    marginBottom: 12,
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    gap: 12,
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  backButtonText: {
+    color: "#2563EB",
+    fontSize: 14,
+    fontWeight: "500",
   },
   sectionTitle: {
     color: "#1F2937",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
     marginBottom: 12,
+  },
+  infoCard: {
+    backgroundColor: "#F9FAFB",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  infoRowLast: {
+    borderBottomWidth: 0,
+  },
+  infoLabel: {
+    color: "#6B7280",
+    fontSize: 14,
+    flex: 1,
+  },
+  infoValue: {
+    color: "#1F2937",
+    fontSize: 14,
+    fontWeight: "500",
+    flex: 2,
+    textAlign: "right",
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "capitalize",
+  },
+  statusSuccess: {
+    backgroundColor: "#D1FAE5",
+    color: "#065F46",
+  },
+  statusError: {
+    backgroundColor: "#FEE2E2",
+    color: "#991B1B",
+  },
+  statusWarning: {
+    backgroundColor: "#FEF3C7",
+    color: "#92400E",
   },
   radioGroup: {
     flexDirection: "row",
-    gap: 8,
+    gap: 12,
+    marginBottom: 20,
   },
   radioButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: "#E5E7EB",
     backgroundColor: "white",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
   radioButtonActive: {
-    borderColor: "#2563EB",
-    backgroundColor: "#EFF6FF",
+    borderColor: "#10B981",
+    backgroundColor: "#D1FAE5",
+  },
+  radioButtonRejected: {
+    borderColor: "#EF4444",
   },
   radioText: {
     color: "#6B7280",
-    textAlign: "center",
     fontWeight: "500",
-    fontSize: 14,
+    fontSize: 15,
   },
   radioTextActive: {
-    color: "#2563EB",
+    color: "#065F46",
     fontWeight: "600",
   },
+  radioGroupHorizontal: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  conditionButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "white",
+  },
+  conditionButtonActive: {
+    borderColor: "#2563EB",
+    backgroundColor: "#EFF6FF",
+  },
+  conditionText: {
+    color: "#6B7280",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  conditionTextActive: {
+    color: "#2563EB",
+    fontWeight: "500",
+  },
+  problemReportLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    backgroundColor: "#FFFBEB",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    marginTop: 16,
+  },
+  problemReportText: {
+    color: "#92400E",
+    fontWeight: "500",
+    flex: 1,
+    marginHorizontal: 8,
+  },
+  problemTypeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 8,
+  },
+  problemTypeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "white",
+  },
+  problemTypeButtonActive: {
+    borderColor: "#2563EB",
+    backgroundColor: "#EFF6FF",
+  },
+  problemTypeText: {
+    color: "#6B7280",
+    fontSize: 14,
+  },
+  problemTypeTextActive: {
+    color: "#2563EB",
+    fontWeight: "500",
+  },
+  photoButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#2563EB",
+    borderStyle: "dashed",
+    marginTop: 16,
+  },
+  photoButtonText: {
+    color: "#2563EB",
+    fontWeight: "500",
+    fontSize: 15,
+  },
   inputGroup: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   inputLabel: {
     color: "#374151",
     fontSize: 14,
     fontWeight: "500",
-    marginBottom: 6,
+    marginBottom: 8,
   },
   input: {
     backgroundColor: "#F9FAFB",
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 15,
     color: "#1F2937",
   },
   textArea: {
-    height: 80,
+    height: 100,
     textAlignVertical: "top",
   },
-  userInfoBox: {
-    backgroundColor: "#EFF6FF",
+  userInfoCard: {
+    backgroundColor: "#F0F9FF",
     padding: 16,
     borderRadius: 12,
-    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 20,
   },
-  userInfoLabel: {
-    color: "#1E40AF",
-    fontSize: 12,
-    marginBottom: 4,
+  userInfoContent: {
+    flex: 1,
   },
   userInfoName: {
     color: "#1E3A8A",
     fontWeight: "600",
     fontSize: 16,
   },
-  userInfoZone: {
+  userInfoRole: {
     color: "#2563EB",
+    fontSize: 14,
+    marginTop: 2,
+  },
+  userInfoTime: {
+    color: "#6B7280",
     fontSize: 12,
     marginTop: 4,
   },
   buttonRow: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 16,
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
   },
   actionButton: {
     flex: 1,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
   },
   secondaryButton: {
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#F3F4F6",
   },
   secondaryButtonText: {
     color: "#1F2937",
     fontWeight: "600",
+    fontSize: 16,
   },
   primaryButton: {
     backgroundColor: "#2563EB",
   },
+  buttonIcon: {
+    marginRight: 4,
+  },
   primaryButtonText: {
     color: "white",
     fontWeight: "600",
+    fontSize: 16,
   },
 });
