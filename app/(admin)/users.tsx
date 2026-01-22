@@ -1,11 +1,8 @@
-<<<<<<< HEAD
-=======
 // app/(admin)/users.tsx
 
 import UserDetailModal from "@/components/admin/UserDetailModal";
 import UserList from "@/components/admin/UserList";
 import UserModal from "@/components/admin/UserModal";
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
@@ -27,15 +24,6 @@ import { useAuth } from "../../context/AuthContext";
 interface UserItem {
   id: string;
   username: string;
-<<<<<<< HEAD
-  role: "admin" | "pic" | "user" | "school_admin" | "school_user";
-  full_name?: string;
-  email?: string;
-  phone_number?: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-=======
   role: "admin";
   full_name?: string;
   email?: string;
@@ -47,23 +35,10 @@ interface UserItem {
   updated_at: string;
   last_login_at?: string;
   created_by?: string;
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
 }
 
 interface SPPGOption {
   id: string;
-<<<<<<< HEAD
-  sppg_name: string;
-  address?: string;
-}
-
-interface SchoolOption {
-  id: string;
-  name: string;
-  school_code: string;
-  sppg_id?: string;
-}
-=======
   sppg_code: string;
   sppg_name: string;
   address?: string;
@@ -84,7 +59,6 @@ interface SchoolPICOption {
 
 const API_URL =
   process.env.API_URL_SERVER || "https://sppg-backend-new.vercel.app/api";
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
 
 export default function UserManagementScreen() {
   const { user: currentUser, getToken } = useAuth();
@@ -94,52 +68,12 @@ export default function UserManagementScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [userList, setUserList] = useState<UserItem[]>([]);
-<<<<<<< HEAD
-  const [sppgList, setSppgList] = useState<SPPGOption[]>([]);
-  const [schoolList, setSchoolList] = useState<SchoolOption[]>([]);
-=======
   const [schoolPICList, setSchoolPICList] = useState<SchoolPICOption[]>([]);
   const [isLoadingPIC, setIsLoadingPIC] = useState(false);
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
   const [modalVisible, setModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [editItem, setEditItem] = useState<UserItem | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
-<<<<<<< HEAD
-  const [formData, setFormData] = useState({
-    username: "",
-    password: "",
-    confirmPassword: "",
-    role: "pic" as "admin" | "pic" | "user" | "school_admin" | "school_user",
-    full_name: "",
-    email: "",
-    phone_number: "",
-    school_id: "",
-    position: "",
-    is_active: true,
-  });
-  const [showSPPGModal, setShowSPPGModal] = useState(false);
-  const [showSchoolModal, setShowSchoolModal] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [formLoading, setFormLoading] = useState(false);
-  const [selectedSppgId, setSelectedSppgId] = useState<string>("");
-  const [filterRole, setFilterRole] = useState<
-    "all" | "admin" | "pic" | "user" | "school_admin" | "school_user"
-  >("all");
-
-  const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-    const token = await getToken();
-    return fetch(url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
-  };
-=======
   const [filterRole, setFilterRole] = useState<"admin">("admin");
   const [searchQuery, setSearchQuery] = useState("");
   const [showInactive, setShowInactive] = useState(false);
@@ -147,7 +81,6 @@ export default function UserManagementScreen() {
   useEffect(() => {
     loadInitialData();
   }, []);
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
 
   const loadInitialData = async () => {
     try {
@@ -163,10 +96,6 @@ export default function UserManagementScreen() {
 
   const loadUsers = async () => {
     try {
-<<<<<<< HEAD
-      const response = await fetchWithAuth(`${API_URL}/users`);
-      const data = await response.json();
-=======
       const token = await getToken();
       const res = await fetch(`${API_URL}/dashboard/admin/users`, {
         headers: {
@@ -181,61 +110,12 @@ export default function UserManagementScreen() {
       }
 
       const data = await res.json();
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
       if (data.success) {
         setUserList(data.data || []);
       } else {
         Alert.alert("Error", data.error || "Gagal memuat data pengguna");
       }
     } catch (error) {
-<<<<<<< HEAD
-      Alert.alert("Error", "Gagal memuat data pengguna");
-    }
-  };
-
-  const loadSPPGList = async () => {
-    try {
-      const response = await fetchWithAuth(`${API_URL}/sppg`);
-      const data = await response.json();
-      if (data.success) {
-        setSppgList(data.data || []);
-      }
-    } catch (error) {
-      console.error("Error loading SPPG:", error);
-    }
-  };
-
-  const loadSchoolList = async () => {
-    try {
-      const response = await fetchWithAuth(`${API_URL}/schools`);
-      const data = await response.json();
-      if (data.success) {
-        setSchoolList(data.data || []);
-      }
-    } catch (error) {
-      console.error("Error loading schools:", error);
-    }
-  };
-
-  const loadInitialData = async () => {
-    setLoading(true);
-    try {
-      await Promise.all([loadUsers(), loadSPPGList(), loadSchoolList()]);
-    } catch (error) {
-      console.error("Error loading initial data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadInitialData();
-  }, []);
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadUsers().finally(() => setRefreshing(false));
-=======
       console.error("Load users error:", error);
       Alert.alert(
         "Error",
@@ -280,7 +160,6 @@ export default function UserManagementScreen() {
     Promise.all([loadUsers(), loadSchoolPICList()]).finally(() =>
       setRefreshing(false),
     );
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
   };
 
   const handleCreate = () => {
@@ -313,160 +192,24 @@ export default function UserManagementScreen() {
 
   const handleDeactivate = async (id: string, username: string) => {
     if (id === currentUser?.id) {
-<<<<<<< HEAD
-      Alert.alert("Error", "Anda tidak dapat menghapus akun sendiri");
-=======
       Alert.alert("Error", "Anda tidak dapat menonaktifkan akun Anda sendiri");
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
       return;
     }
 
     Alert.alert(
-<<<<<<< HEAD
-      "Konfirmasi Hapus",
-      `Apakah Anda yakin ingin menghapus user "${username}"?`,
-=======
       "Nonaktifkan User",
       `Apakah Anda yakin ingin menonaktifkan user ${username}?`,
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
       [
         { text: "Batal", style: "cancel" },
         {
           text: "Nonaktifkan",
           style: "destructive",
-<<<<<<< HEAD
-          onPress: () => confirmDeleteUser(id),
-=======
           onPress: () => toggleUserStatus(id, false),
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
         },
       ],
     );
   };
 
-<<<<<<< HEAD
-  const confirmDeleteUser = async (id: string) => {
-    try {
-      const response = await fetchWithAuth(`${API_URL}/users/${id}`, {
-        method: "DELETE",
-      });
-      const data = await response.json();
-      if (data.success) {
-        Alert.alert("Berhasil", data.message || "User berhasil dihapus");
-        loadUsers();
-      } else {
-        Alert.alert("Error", data.error || "Gagal menghapus user");
-      }
-    } catch (error) {
-      Alert.alert("Error", "Gagal menghapus user");
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      username: "",
-      password: "",
-      confirmPassword: "",
-      role: "pic",
-      full_name: "",
-      email: "",
-      phone_number: "",
-      school_id: "",
-      position: "",
-      is_active: true,
-    });
-    setSelectedSppgId("");
-  };
-
-  const rolesRequiringSchool = ["pic", "school_admin", "school_user"];
-
-  const handleSubmit = async () => {
-    if (formLoading) return;
-
-    if (!formData.username.trim()) {
-      Alert.alert("Error", "Username wajib diisi");
-      return;
-    }
-
-    const usernameRegex = /^[a-zA-Z0-9._-]{3,50}$/;
-    if (!usernameRegex.test(formData.username)) {
-      Alert.alert(
-        "Error",
-        "Username harus 3-50 karakter, hanya boleh mengandung huruf, angka, titik (.), garis bawah (_), dan tanda minus (-)",
-      );
-      return;
-    }
-
-    if (!editItem) {
-      if (!formData.password) {
-        Alert.alert("Error", "Password wajib diisi");
-        return;
-      }
-      if (formData.password.length < 6) {
-        Alert.alert("Error", "Password minimal 6 karakter");
-        return;
-      }
-      if (formData.password !== formData.confirmPassword) {
-        Alert.alert("Error", "Password tidak cocok");
-        return;
-      }
-    }
-
-    if (editItem && formData.password) {
-      if (formData.password.length < 6) {
-        Alert.alert("Error", "Password minimal 6 karakter");
-        return;
-      }
-      if (formData.password !== formData.confirmPassword) {
-        Alert.alert("Error", "Password tidak cocok");
-        return;
-      }
-    }
-
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      Alert.alert("Error", "Format email tidak valid");
-      return;
-    }
-
-    if (rolesRequiringSchool.includes(formData.role) && !formData.school_id) {
-      Alert.alert("Error", "Sekolah wajib dipilih untuk role ini");
-      return;
-    }
-
-    const payload: any = {
-      username: formData.username.trim(),
-      role: formData.role,
-      full_name: formData.full_name.trim() || null,
-      email: formData.email.trim() || null,
-      phone_number: formData.phone_number.trim() || null,
-      is_active: formData.is_active,
-    };
-
-    if (!editItem || formData.password) {
-      payload.password = formData.password;
-    }
-
-    if (rolesRequiringSchool.includes(formData.role)) {
-      payload.school_id = formData.school_id;
-      payload.position = formData.position.trim() || formData.role;
-    }
-
-    if (editItem && editItem.school_pic_id) {
-      delete payload.school_id;
-      delete payload.position;
-    }
-
-    setFormLoading(true);
-
-    try {
-      const endpoint = editItem
-        ? `${API_URL}/users/${editItem.id}`
-        : `${API_URL}/users`;
-      const method = editItem ? "PUT" : "POST";
-      const response = await fetchWithAuth(endpoint, {
-        method,
-        body: JSON.stringify(payload),
-=======
   const handleActivate = async (id: string, username: string) => {
     Alert.alert(
       "Aktifkan User",
@@ -492,13 +235,9 @@ export default function UserManagementScreen() {
           Accept: "application/json",
         },
         body: JSON.stringify({ is_active: isActive }),
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
       });
       const data = await response.json();
       if (data.success) {
-<<<<<<< HEAD
-        Alert.alert("Berhasil", data.message || "User berhasil disimpan");
-=======
         Alert.alert(
           "Berhasil",
           `User berhasil ${isActive ? "diaktifkan" : "dinonaktifkan"}`,
@@ -563,54 +302,12 @@ export default function UserManagementScreen() {
           "Berhasil",
           editItem ? "User berhasil diperbarui" : "User berhasil dibuat",
         );
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
         setModalVisible(false);
         loadUsers();
       } else {
         Alert.alert("Error", data.error || "Gagal menyimpan user");
       }
     } catch (error) {
-<<<<<<< HEAD
-      Alert.alert("Error", "Gagal menyimpan user");
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
-  const filteredUsers =
-    filterRole === "all"
-      ? userList
-      : userList.filter((u) => u.role === filterRole);
-  const filteredSchools = selectedSppgId
-    ? schoolList.filter((school) => school.sppg_id === selectedSppgId)
-    : schoolList;
-  const selectedSchool = schoolList.find((s) => s.id === formData.school_id);
-
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case "admin":
-        return "#DC2626";
-      case "pic":
-        return "#059669";
-      case "school_admin":
-        return "#7C3AED";
-      case "school_user":
-        return "#EA580C";
-      case "user":
-        return "#2563EB";
-      default:
-        return "#6B7280";
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("id-ID", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-=======
       console.error("Submit error:", error);
       Alert.alert("Error", "Terjadi kesalahan saat menyimpan user");
     } finally {
@@ -636,7 +333,6 @@ export default function UserManagementScreen() {
   const inactiveUsersCount = userList.length - activeUsersCount;
   const roleCounts = {
     admin: userList.filter((u) => u.role === "admin" && u.is_active).length,
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
   };
 
   if (loading && !refreshing) {
@@ -652,11 +348,6 @@ export default function UserManagementScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-<<<<<<< HEAD
-        <Text style={styles.headerTitle}>Manajemen Pengguna</Text>
-        <TouchableOpacity style={styles.addButton} onPress={handleCreate}>
-          <Ionicons name="person-add" size={20} color="white" />
-=======
         <View style={styles.headerContent}>
           <TouchableOpacity
             style={styles.backButton}
@@ -674,12 +365,10 @@ export default function UserManagementScreen() {
         </View>
         <TouchableOpacity style={styles.addButton} onPress={handleCreate}>
           <Ionicons name="person-add-outline" size={22} color="white" />
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
           <Text style={styles.addButtonText}>Tambah</Text>
         </TouchableOpacity>
       </View>
 
-<<<<<<< HEAD
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>
         <ScrollView
@@ -710,66 +399,11 @@ export default function UserManagementScreen() {
                 style={[
                   styles.filterButton,
                   filterRole === role && styles.filterActive,
-=======
-      {/* Stats Overview */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.statsContainer}
-      >
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{userList.length}</Text>
-          <Text style={styles.statLabel}>Total User</Text>
-        </View>
-        <View style={[styles.statCard, styles.statCardActive]}>
-          <Text style={[styles.statValue, styles.statValueActive]}>
-            {activeUsersCount}
-          </Text>
-          <Text style={[styles.statLabel, styles.statLabelActive]}>Aktif</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{roleCounts.admin}</Text>
-          <Text style={styles.statLabel}>Admin</Text>
-        </View>
-      </ScrollView>
-
-      {/* Search and Filters */}
-      <View style={styles.filterSection}>
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#9CA3AF" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Cari user..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholderTextColor="#9CA3AF"
-          />
-          {searchQuery ? (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        <View style={styles.filterRow}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.roleFilterContainer}
-          >
-            {["all", "admin", "pic", "operator"].map((role) => (
-              <TouchableOpacity
-                key={role}
-                style={[
-                  styles.roleFilterButton,
-                  filterRole === role && styles.roleFilterButtonActive,
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
                 ]}
                 onPress={() => setFilterRole(role as any)}
               >
                 <Text
                   style={[
-<<<<<<< HEAD
                     styles.filterText,
                     filterRole === role && styles.filterTextActive,
                   ]}
@@ -784,52 +418,6 @@ export default function UserManagementScreen() {
             ),
           )}
         </ScrollView>
-=======
-                    styles.roleFilterText,
-                    filterRole === role && styles.roleFilterTextActive,
-                  ]}
-                >
-                  {role === "all" ? "Semua" : role}
-                </Text>
-                {role !== "all" && (
-                  <View
-                    style={[
-                      styles.roleBadge,
-                      filterRole === role && styles.roleBadgeActive,
-                    ]}
-                  >
-                    <Text style={styles.roleBadgeText}>
-                      {roleCounts[role as keyof typeof roleCounts] || 0}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <TouchableOpacity
-            style={[
-              styles.inactiveToggle,
-              showInactive && styles.inactiveToggleActive,
-            ]}
-            onPress={() => setShowInactive(!showInactive)}
-          >
-            <Ionicons
-              name={showInactive ? "eye-off-outline" : "eye-outline"}
-              size={18}
-              color={showInactive ? "#2563EB" : "#6B7280"}
-            />
-            <Text
-              style={[
-                styles.inactiveToggleText,
-                showInactive && styles.inactiveToggleTextActive,
-              ]}
-            >
-              Nonaktif
-            </Text>
-          </TouchableOpacity>
-        </View>
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
       </View>
 
       {/* User List */}

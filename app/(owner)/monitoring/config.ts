@@ -1,6 +1,7 @@
 // app/(owner)/monitoring/config.ts
 
 import { StyleSheet } from "react-native";
+import React from "react";
 import { Text } from "react-native";
 
 // Column config type
@@ -18,25 +19,103 @@ export type TableFilter = {
   type?: 'select' | 'date' | 'boolean' | 'search' | 'number';
 };
 
-// Config untuk setiap tabel
-export const TABLE_CONFIGS: {
-  [key: string]: {
-    displayName: string;
-    icon: string;
-    description: string;
-    searchableColumns: string[];
-    columns: TableColumn[];
-    filters?: {
-      [key: string]: TableFilter;
-    };
-    actions?: {
-      view?: boolean;
-      edit?: boolean;
-      delete?: boolean;
-      export?: boolean;
-    };
+// Helper functions untuk styling
+const getRoleColor = (role: string) => {
+  const colors: Record<string, string> = {
+    owner: "#8B5CF6",
+    admin: "#3B82F6",
+    pic: "#10B981",
   };
-} = {
+  return colors[role?.toLowerCase()] || "#6B7280";
+};
+
+const getMenuStatusColor = (status: string) => {
+  const colors: Record<string, string> = {
+    pending: "#FEF3C7",
+    approved: "#D1FAE5",
+    rejected: "#FEE2E2",
+    production: "#DBEAFE",
+    completed: "#BBF7D0",
+  };
+  return colors[status?.toLowerCase()] || "#F3F4F6";
+};
+
+const getMenuConditionColor = (condition: string) => {
+  const colors: Record<string, string> = {
+    normal: "#D1FAE5",
+    special: "#DBEAFE",
+    emergency: "#FEE2E2",
+  };
+  return colors[condition?.toLowerCase()] || "#F3F4F6";
+};
+
+const getDistributionStatusColor = (status: string) => {
+  const colors: Record<string, string> = {
+    pending: "#FEF3C7",
+    delivered: "#DBEAFE",
+    received: "#D1FAE5",
+    rejected: "#FEE2E2",
+  };
+  return colors[status?.toLowerCase()] || "#F3F4F6";
+};
+
+const getDistributionConditionColor = (condition: string) => {
+  const colors: Record<string, string> = {
+    normal: "#D1FAE5",
+    damaged: "#FEE2E2",
+    shortage: "#FEF3C7",
+  };
+  return colors[condition?.toLowerCase()] || "#F3F4F6";
+};
+
+const getReportStatusColor = (status: string) => {
+  const colors: Record<string, string> = {
+    pending: "#FEF3C7",
+    investigating: "#DBEAFE",
+    resolved: "#D1FAE5",
+    rejected: "#FEE2E2",
+  };
+  return colors[status?.toLowerCase()] || "#F3F4F6";
+};
+
+// Export helper functions
+export const StatusColors = {
+  getRoleColor,
+  getMenuStatusColor,
+  getMenuConditionColor,
+  getDistributionStatusColor,
+  getDistributionConditionColor,
+  getReportStatusColor,
+};
+
+// Styles untuk render function
+const styles = StyleSheet.create({
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+    fontSize: 10,
+    fontWeight: "500",
+    color: "#374151",
+  },
+  roleBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+    fontSize: 10,
+    fontWeight: "500",
+    color: "white",
+  },
+  cellText: {
+    fontSize: 12,
+    color: "#374151",
+  },
+});
+
+// Config untuk setiap tabel
+export const TABLE_CONFIGS = {
   users: {
     displayName: "Users",
     icon: "people",
@@ -51,7 +130,7 @@ export const TABLE_CONFIGS: {
         key: "role", 
         label: "Role", 
         width: 100,
-        render: (value) => (
+        render: (value: any) => (
           <Text style={[styles.roleBadge, { backgroundColor: getRoleColor(value) }]}>
             {value?.toUpperCase() || "USER"}
           </Text>
@@ -172,8 +251,8 @@ export const TABLE_CONFIGS: {
         key: "sppg_name", 
         label: "SPPG", 
         width: 120,
-        render: (value, item) => (
-          <Text style={styles.cellText}>{item.sppg_name || "N/A"}</Text>
+        render: (value: any, item?: any) => (
+          <Text style={styles.cellText}>{item?.sppg_name || "N/A"}</Text>
         ),
       },
       {
@@ -881,128 +960,14 @@ export const TABLE_CONFIGS: {
       export: true,
     },
   },
-};
+} as const; // Gunakan const assertion untuk type safety
 
-// Helper functions untuk styling
-const getRoleColor = (role: string) => {
-  const colors: Record<string, string> = {
-    owner: "#8B5CF6",
-    admin: "#3B82F6",
-    pic: "#10B981",
-  };
-  return colors[role?.toLowerCase()] || "#6B7280";
-};
+// Tipe untuk TABLE_CONFIGS
+export type TableConfigsType = typeof TABLE_CONFIGS;
+export type TableName = keyof TableConfigsType;
+export type TableConfig = TableConfigsType[TableName];
 
-const getMenuStatusColor = (status: string) => {
-  const colors: Record<string, string> = {
-    pending: "#FEF3C7",
-    approved: "#D1FAE5",
-    rejected: "#FEE2E2",
-    production: "#DBEAFE",
-    completed: "#BBF7D0",
-  };
-  return colors[status?.toLowerCase()] || "#F3F4F6";
-};
-
-const getMenuConditionColor = (condition: string) => {
-  const colors: Record<string, string> = {
-    normal: "#D1FAE5",
-    special: "#DBEAFE",
-    emergency: "#FEE2E2",
-  };
-  return colors[condition?.toLowerCase()] || "#F3F4F6";
-};
-
-const getDistributionStatusColor = (status: string) => {
-  const colors: Record<string, string> = {
-    pending: "#FEF3C7",
-    delivered: "#DBEAFE",
-    received: "#D1FAE5",
-    rejected: "#FEE2E2",
-  };
-  return colors[status?.toLowerCase()] || "#F3F4F6";
-};
-
-const getDistributionConditionColor = (condition: string) => {
-  const colors: Record<string, string> = {
-    normal: "#D1FAE5",
-    damaged: "#FEE2E2",
-    shortage: "#FEF3C7",
-  };
-  return colors[condition?.toLowerCase()] || "#F3F4F6";
-};
-
-const getReportStatusColor = (status: string) => {
-  const colors: Record<string, string> = {
-    pending: "#FEF3C7",
-    investigating: "#DBEAFE",
-    resolved: "#D1FAE5",
-    rejected: "#FEE2E2",
-  };
-  return colors[status?.toLowerCase()] || "#F3F4F6";
-};
-
-// Export helper functions
-export const StatusColors = {
-  getRoleColor,
-  getMenuStatusColor,
-  getMenuConditionColor,
-  getDistributionStatusColor,
-  getDistributionConditionColor,
-  getReportStatusColor,
-};
-
-// Styles untuk render function
-const styles = StyleSheet.create({
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: "flex-start",
-    fontSize: 10,
-    fontWeight: "500",
-    color: "#374151",
-  },
-  roleBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: "flex-start",
-    fontSize: 10,
-    fontWeight: "500",
-    color: "white",
-  },
-  cellText: {
-    fontSize: 12,
-    color: "#374151",
-  },
-});
-
-// Export default config
-export default TABLE_CONFIGS;
-
-// Export fungsi untuk mendapatkan config berdasarkan table name
-export const getTableConfig = (tableName: string) => {
-  return TABLE_CONFIGS[tableName] || {
-    displayName: tableName,
-    icon: "grid",
-    description: "Data monitoring table",
-    searchableColumns: [],
-    columns: [],
-    actions: { view: true },
-  };
-};
-
-// Export list tabel yang tersedia untuk halaman index
-export const AVAILABLE_TABLES = Object.keys(TABLE_CONFIGS).map((key) => ({
-  id: key,
-  name: TABLE_CONFIGS[key].displayName,
-  description: TABLE_CONFIGS[key].description,
-  icon: TABLE_CONFIGS[key].icon,
-  color: getTableColor(key),
-}));
-
-const getTableColor = (tableId: string) => {
+const getTableColor = (tableId: string): string => {
   const colors: Record<string, string> = {
     users: "#3B82F6",
     sppg_masters: "#10B981",
@@ -1022,6 +987,33 @@ const getTableColor = (tableId: string) => {
   return colors[tableId] || "#6B7280";
 };
 
-// Export tipe untuk TypeScript
-export type TableConfigType = typeof TABLE_CONFIGS;
-export type TableName = keyof TableConfigType;
+// Export list tabel yang tersedia untuk halaman index
+export const AVAILABLE_TABLES = Object.entries(TABLE_CONFIGS).map(([id, config]) => ({
+  id,
+  name: config.displayName,
+  description: config.description,
+  icon: config.icon,
+  color: getTableColor(id),
+}));
+
+// Export fungsi untuk mendapatkan config berdasarkan table name
+export const getTableConfig = (tableName: string): TableConfig => {
+  const config = TABLE_CONFIGS[tableName as TableName];
+  
+  if (config) {
+    return config;
+  }
+  
+  // Return default config jika tidak ditemukan
+  return {
+    displayName: tableName,
+    icon: "grid",
+    description: "Data monitoring table",
+    searchableColumns: [],
+    columns: [],
+    actions: { view: true },
+  };
+};
+
+// Export default config
+export default TABLE_CONFIGS;
