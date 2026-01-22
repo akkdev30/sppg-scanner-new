@@ -1,6 +1,6 @@
 // context/AuthContext.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios, { AxiosError } from "axios";
+import axios, { AxiosError, isAxiosError } from "axios";
 import * as SplashScreen from "expo-splash-screen";
 import React, {
   createContext,
@@ -10,7 +10,7 @@ import React, {
   useState,
 } from "react";
 
-// Types
+// Types - Update sesuai response dari backend
 interface School {
   id: string;
   school_code: string;
@@ -50,9 +50,10 @@ interface User {
   last_login_at?: string;
   created_at: string;
   updated_at: string;
-  school_pic?: SchoolPIC;
-  school?: School;
-  sppg?: SPPG;
+  school_pic?: SchoolPIC | null;
+  school?: School | null;
+  sppg?: SPPG | null;
+  // Optional fields yang mungkin tidak selalu ada di response
   permissions?: {
     [key: string]: boolean;
   };
@@ -98,7 +99,7 @@ interface CurrentUserResponse {
   success: boolean;
   message: string;
   data: User;
-  token_info: {
+  token_info?: {
     expires_in: number;
     issued_at: string;
   };
@@ -112,6 +113,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<LoginResponse>;
   logout: () => Promise<void>;
+  getToken: () => Promise<string | null>;
   refreshAuthToken: () => Promise<string | null>;
   getCurrentUser: () => Promise<User>;
   updateProfile: (data: {
@@ -129,12 +131,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// URL API - bisa diubah melalui environment variable
+// URL API
 const API_URL =
-  "https://sppg-backend-new.vercel.app" || "http://localhost:3000";
-const API_BASE_URL = `${API_URL}/api/`.includes("/api/auth/login")
-  ? API_URL.replace("/api/auth/login", "/api")
-  : `${API_URL}/api`;
+  process.env.EXPO_PUBLIC_API_URL || "https://sppg-backend-new.vercel.app";
+const API_BASE_URL = `${API_URL}/api`;
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -149,6 +149,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
+
+  // Helper function untuk memformat user data
+  const formatUserData = (userData: any): User => {
+    return {
+      id: userData.id || userData.userId,
+      username: userData.username,
+      role: userData.role,
+      full_name: userData.full_name || userData.fullName || undefined,
+      email: userData.email || undefined,
+      phone_number: userData.phone_number || userData.phoneNumber || undefined,
+      is_active: userData.is_active !== false, // default true
+      last_login_at:
+        userData.last_login_at || userData.lastLoginAt || undefined,
+      created_at:
+        userData.created_at || userData.createdAt || new Date().toISOString(),
+      updated_at:
+        userData.updated_at || userData.updatedAt || new Date().toISOString(),
+      school_pic: userData.school_pic || userData.schoolPic || null,
+      school: userData.school || null,
+      sppg: userData.sppg || null,
+      // Set default values untuk fields yang optional
+      permissions: userData.permissions || {},
+      stats: userData.stats || {},
+    };
+  };
 
   // Setup axios interceptors
   useEffect(() => {
@@ -213,13 +238,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         AsyncStorage.getItem("user"),
       ]);
 
-      if (storedToken && storedUser) {
+      console.log("Stored token exists:", !!storedToken);
+      console.log("Stored refresh token exists:", !!storedRefreshToken);
+      console.log("Stored user exists:", !!storedUser);
+
+      if (storedToken) {
         setToken(storedToken);
         setRefreshToken(storedRefreshToken);
-        setUser(JSON.parse(storedUser));
 
-        // Verify token masih valid
-        await verifyToken(storedToken);
+        if (storedUser) {
+          try {
+            const parsedUser = JSON.parse(storedUser);
+            const formattedUser = formatUserData(parsedUser);
+            setUser(formattedUser);
+
+            // Verify token dengan method simplified
+            const isValid = await verifyToken(storedToken);
+            console.log("Token is valid:", isValid);
+
+            if (!isValid) {
+              // Jika token tidak valid, coba refresh
+              console.log("Token invalid, attempting refresh...");
+              await refreshAuthToken();
+            }
+          } catch (parseError) {
+            console.error("Error parsing user data:", parseError);
+            await clearAuth();
+          }
+        }
+      } else {
+        console.log("No token found in storage");
+        await clearAuth();
       }
     } catch (error) {
       console.error("Error loading auth data:", error);
@@ -227,27 +276,61 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setIsLoading(false);
       setIsInitialized(true);
-      await SplashScreen.hideAsync();
+      await SplashScreen.hideAsync().catch(() => {
+        console.log("Splash screen already hidden");
+      });
     }
   };
 
   const verifyToken = async (authToken: string): Promise<boolean> => {
     try {
-      const response = await axios.post<VerifyResponse>(
-        `${API_BASE_URL}/auth/verify`,
-        { token: authToken },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          timeout: 5000,
-        },
-      );
+      // Method 1: Decode token tanpa verify ke server
+      if (!authToken) return false;
 
-      return response.data.success;
+      // Cek apakah token ada dan formatnya benar
+      const tokenParts = authToken.split(".");
+      if (tokenParts.length !== 3) return false;
+
+      try {
+        // Decode token payload
+        const payload = JSON.parse(atob(tokenParts[1]));
+
+        // Cek expiration
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (payload.exp && payload.exp < currentTime) {
+          console.log("Token expired");
+          return false;
+        }
+
+        return true;
+      } catch (decodeError) {
+        console.error("Token decode error:", decodeError);
+        return false;
+      }
     } catch (error) {
       console.error("Token verification failed:", error);
       return false;
+    }
+  };
+
+  const getToken = async (): Promise<string | null> => {
+    try {
+      // Coba ambil dari state dulu
+      if (token) {
+        return token;
+      }
+
+      // Jika tidak ada di state, coba ambil dari storage
+      const storedToken = await AsyncStorage.getItem("token");
+      if (storedToken) {
+        setToken(storedToken);
+        return storedToken;
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Get token error:", error);
+      return null;
     }
   };
 
@@ -258,6 +341,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
 
+      console.log("Attempting login for user:", username);
+
       const response = await axios.post<LoginResponse>(
         `${API_BASE_URL}/auth/login`,
         { username, password },
@@ -265,48 +350,73 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           headers: {
             "Content-Type": "application/json",
           },
-          timeout: 15000, // 15 seconds timeout untuk login
+          timeout: 15000,
         },
       );
 
-      if (response.data.success) {
+      const responseData = response.data;
+
+      if (responseData.success) {
         const {
           token: newToken,
           refreshToken: newRefreshToken,
           user: userData,
-        } = response.data;
+        } = responseData;
+
+        console.log("Login successful, token received");
+
+        // Format user data sebelum disimpan
+        const formattedUser = formatUserData(userData);
 
         // Save to storage
         await Promise.all([
           AsyncStorage.setItem("token", newToken),
-          AsyncStorage.setItem("refreshToken", newRefreshToken),
-          AsyncStorage.setItem("user", JSON.stringify(userData)),
+          AsyncStorage.setItem("refreshToken", newRefreshToken || ""), // Handle jika refreshToken kosong
+          AsyncStorage.setItem("user", JSON.stringify(formattedUser)),
         ]);
+
+        console.log("Auth data saved to storage");
 
         // Update state
         setToken(newToken);
         setRefreshToken(newRefreshToken);
-        setUser(userData);
+        setUser(formattedUser);
 
-        return response.data;
+        return {
+          ...responseData,
+          user: formattedUser,
+        };
       } else {
-        throw new Error(response.data.error || "Login gagal");
+        throw new Error(responseData.error || "Login gagal");
       }
     } catch (error: any) {
       console.error("Login error:", error);
 
+      // Log detail error
       if (axios.isAxiosError(error)) {
+        if (error.response) {
+          console.error(
+            "Server error:",
+            error.response.status,
+            error.response.data,
+          );
+        } else if (error.request) {
+          console.error("No response received:", error.request);
+        } else {
+          console.error("Error setting up request:", error.message);
+        }
+      }
+
+      if (isAxiosError(error)) {
         const axiosError = error as AxiosError<LoginResponse>;
 
         if (axiosError.response) {
-          // Server responded with error
           const serverError = axiosError.response.data;
           throw new Error(
             serverError?.error ||
               `Error ${axiosError.response.status}: ${axiosError.response.statusText}`,
           );
         } else if (axiosError.request) {
-          // No response received
           throw new Error(
             "Tidak dapat terhubung ke server. Periksa koneksi internet Anda.",
           );
@@ -321,39 +431,60 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshAuthToken = async (): Promise<string | null> => {
     try {
-      if (!refreshToken) {
+      const currentRefreshToken =
+        refreshToken || (await AsyncStorage.getItem("refreshToken"));
+
+      if (!currentRefreshToken) {
+        console.error("No refresh token available");
         throw new Error("No refresh token available");
       }
 
-      const response = await axios.post<RefreshTokenResponse>(
-        `${API_BASE_URL}/auth/refresh`,
-        { refreshToken },
-        {
-          headers: {
-            "Content-Type": "application/json",
+      // Coba refresh token ke server
+      try {
+        const response = await axios.post<RefreshTokenResponse>(
+          `${API_BASE_URL}/auth/refresh`,
+          { refreshToken: currentRefreshToken },
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            timeout: 10000,
           },
-          timeout: 10000,
-        },
-      );
+        );
 
-      if (response.data.success) {
-        const { token: newToken, refreshToken: newRefreshToken } =
-          response.data;
+        if (response.data.success) {
+          const { token: newToken, refreshToken: newRefreshToken } =
+            response.data;
 
-        // Save to storage
-        await Promise.all([
-          AsyncStorage.setItem("token", newToken),
-          AsyncStorage.setItem("refreshToken", newRefreshToken),
-        ]);
+          // Save to storage
+          await Promise.all([
+            AsyncStorage.setItem("token", newToken),
+            AsyncStorage.setItem("refreshToken", newRefreshToken),
+          ]);
 
-        // Update state
-        setToken(newToken);
-        setRefreshToken(newRefreshToken);
+          // Update state
+          setToken(newToken);
+          setRefreshToken(newRefreshToken);
 
-        return newToken;
+          return newToken;
+        } else {
+          throw new Error(response.data.error || "Failed to refresh token");
+        }
+      } catch (serverError: any) {
+        // Jika endpoint /auth/refresh tidak tersedia (404/401)
+        if (
+          serverError.response?.status === 404 ||
+          serverError.response?.status === 401 ||
+          serverError.response?.status === 400
+        ) {
+          console.log(
+            "Refresh endpoint not available or token invalid, clearing auth",
+          );
+          await clearAuth();
+          return null;
+        }
+        throw serverError;
       }
-
-      throw new Error("Failed to refresh token");
     } catch (error) {
       console.error("Refresh token error:", error);
       await clearAuth();
@@ -363,7 +494,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const getCurrentUser = async (): Promise<User> => {
     try {
-      if (!token) {
+      const currentToken = await getToken();
+      if (!currentToken) {
         throw new Error("Not authenticated");
       }
 
@@ -371,28 +503,46 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         `${API_BASE_URL}/auth/me`,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${currentToken}`,
           },
           timeout: 10000,
         },
       );
 
       if (response.data.success) {
+        // PERBAIKAN DI SINI: Ambil dari response.data.data
         const userData = response.data.data;
+        const formattedUser = formatUserData(userData);
 
         // Update storage and state
-        await AsyncStorage.setItem("user", JSON.stringify(userData));
-        setUser(userData);
+        await AsyncStorage.setItem("user", JSON.stringify(formattedUser));
+        setUser(formattedUser);
 
-        return userData;
+        return formattedUser;
       }
 
       throw new Error("Failed to get current user");
     } catch (error: any) {
       console.error("Get current user error:", error);
 
+      // Debug: log response jika ada
+      if (error.response) {
+        console.log("Error response:", error.response.data);
+        console.log("Error status:", error.response.status);
+      }
+
       if (error.response?.status === 401) {
         await clearAuth();
+      }
+
+      // Jika endpoint /auth/me tidak tersedia, return user dari storage
+      if (error.response?.status === 404 || error.code === "ERR_BAD_REQUEST") {
+        console.log("Endpoint /auth/me not available, using stored user");
+        const storedUser = await AsyncStorage.getItem("user");
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          return parsedUser;
+        }
       }
 
       throw error;
@@ -405,7 +555,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     phone_number?: string;
   }): Promise<User> => {
     try {
-      if (!token) {
+      const currentToken = await getToken();
+      if (!currentToken) {
         throw new Error("Not authenticated");
       }
 
@@ -414,7 +565,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         data,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${currentToken}`,
             "Content-Type": "application/json",
           },
           timeout: 10000,
@@ -422,13 +573,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       );
 
       if (response.data.success) {
-        const updatedUser = response.data.data;
+        const userData = response.data.data;
+        const formattedUser = formatUserData(userData);
 
         // Update storage and state
-        await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
-        setUser(updatedUser);
+        await AsyncStorage.setItem("user", JSON.stringify(formattedUser));
+        setUser(formattedUser);
 
-        return updatedUser;
+        return formattedUser;
       }
 
       throw new Error("Failed to update profile");
@@ -444,7 +596,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     confirmPassword: string,
   ): Promise<void> => {
     try {
-      if (!token) {
+      const currentToken = await getToken();
+      if (!currentToken) {
         throw new Error("Not authenticated");
       }
 
@@ -453,7 +606,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         { currentPassword, newPassword, confirmPassword },
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${currentToken}`,
             "Content-Type": "application/json",
           },
           timeout: 10000,
@@ -478,7 +631,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = async (): Promise<void> => {
-    await clearAuth();
+    try {
+      // Panggil endpoint logout jika tersedia
+      const currentToken = await getToken();
+      if (currentToken) {
+        await axios
+          .post(
+            `${API_BASE_URL}/auth/logout`,
+            {},
+            {
+              headers: {
+                Authorization: `Bearer ${currentToken}`,
+              },
+              timeout: 5000,
+            },
+          )
+          .catch(() => {
+            // Ignore logout errors
+          });
+      }
+    } finally {
+      await clearAuth();
+    }
   };
 
   const clearAuth = async (): Promise<void> => {
@@ -507,6 +681,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: !!user && !!token,
     login,
     logout,
+    getToken,
     refreshAuthToken,
     getCurrentUser,
     updateProfile,
@@ -529,7 +704,7 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
-// Helper functions untuk role checking
+// Helper functions untuk role checking - Update untuk handle null values
 export const useUserRole = () => {
   const { user } = useAuth();
 
@@ -540,9 +715,9 @@ export const useUserRole = () => {
     hasPermission: (permission: string): boolean => {
       return user?.permissions?.[permission] || false;
     },
-    getSchoolId: (): string | undefined => user?.school?.id,
-    getSppgId: (): string | undefined => user?.sppg?.id,
-    getUserStats: () => user?.stats,
+    getSchoolId: (): string | undefined => user?.school?.id || undefined,
+    getSppgId: (): string | undefined => user?.sppg?.id || undefined,
+    getUserStats: () => user?.stats || {},
   };
 };
 
