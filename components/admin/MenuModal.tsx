@@ -1,9 +1,11 @@
-// components/admin/MenuModal.tsx
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,24 +13,24 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import SPPGSelectorModal from "./SPPGSelectorModal";
 
 interface MenuItem {
   id: string;
+  menu_code: string;
   menu_name: string;
-  production_portion: number;
-  received_portion: number;
-  production_time: string;
-  menu_condition: "normal" | "problematic";
   sppg_id: string;
+  production_portion: number;
+  production_time: string;
+  scheduled_date: string;
+  notes?: string;
+  status: string;
+  condition: "normal" | "problematic";
 }
 
 interface SPPGItem {
   id: string;
   sppg_name: string;
   address?: string;
-  phone_number?: string;
-  created_at: string;
 }
 
 interface MenuModalProps {
@@ -47,339 +49,611 @@ export default function MenuModal({
   onSubmit,
 }: MenuModalProps) {
   const [formData, setFormData] = useState({
+    menu_code: "",
     menu_name: "",
-    production_portion: "0",
-    received_portion: "0",
-    production_time: new Date().toISOString().split("T")[0] + "T10:00",
-    menu_condition: "normal" as "normal" | "problematic",
     sppg_id: "",
-    sppg_name: "",
+    production_portion: "0",
+    production_time: new Date().toISOString(),
+    scheduled_date: new Date().toISOString().split("T")[0],
+    notes: "",
+    condition: "normal" as "normal" | "problematic",
   });
 
   const [showSPPGModal, setShowSPPGModal] = useState(false);
+  const [showProductionTimePicker, setShowProductionTimePicker] =
+    useState(false);
+  const [showScheduledDatePicker, setShowScheduledDatePicker] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (visible) {
+      setErrors({}); // Reset errors when modal opens
+
       if (editItem) {
-        const selectedSPPG = sppgList.find((s) => s.id === editItem.sppg_id);
         setFormData({
+          menu_code: editItem.menu_code,
           menu_name: editItem.menu_name,
-          production_portion: editItem.production_portion.toString(),
-          received_portion: editItem.received_portion.toString(),
-          production_time: editItem.production_time,
-          menu_condition: editItem.menu_condition,
           sppg_id: editItem.sppg_id,
-          sppg_name: selectedSPPG?.sppg_name || "",
+          production_portion: editItem.production_portion.toString(),
+          production_time: editItem.production_time,
+          scheduled_date: editItem.scheduled_date,
+          notes: editItem.notes || "",
+          condition: editItem.condition,
         });
       } else {
+        // Generate menu code for new item
+        const date = new Date();
+        const randomStr = Math.random()
+          .toString(36)
+          .substring(2, 7)
+          .toUpperCase();
+        const menuCode = `MENU-${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, "0")}${date.getDate().toString().padStart(2, "0")}-${randomStr}`;
+
         const defaultSPPG = sppgList[0];
         setFormData({
+          menu_code: menuCode,
           menu_name: "",
-          production_portion: "0",
-          received_portion: "0",
-          production_time: new Date().toISOString().split("T")[0] + "T10:00",
-          menu_condition: "normal",
           sppg_id: defaultSPPG?.id || "",
-          sppg_name: defaultSPPG?.sppg_name || "",
+          production_portion: "0",
+          production_time: new Date().toISOString(),
+          scheduled_date: new Date().toISOString().split("T")[0],
+          notes: "",
+          condition: "normal",
         });
       }
     }
   }, [visible, editItem, sppgList]);
 
-  const handleSubmit = () => {
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.menu_code.trim()) {
+      newErrors.menu_code = "Kode menu harus diisi";
+    }
+
     if (!formData.menu_name.trim()) {
-      Alert.alert("Error", "Nama menu harus diisi");
-      return;
+      newErrors.menu_name = "Nama menu harus diisi";
+    } else if (formData.menu_name.trim().length < 3) {
+      newErrors.menu_name = "Nama menu minimal 3 karakter";
     }
 
     if (!formData.sppg_id) {
-      Alert.alert("Error", "SPPG harus dipilih");
+      newErrors.sppg_id = "SPPG harus dipilih";
+    }
+
+    const productionPortion = parseInt(formData.production_portion);
+    if (isNaN(productionPortion)) {
+      newErrors.production_portion = "Porsi produksi harus angka";
+    } else if (productionPortion < 0) {
+      newErrors.production_portion = "Porsi produksi tidak valid";
+    } else if (productionPortion > 10000) {
+      newErrors.production_portion = "Porsi produksi maksimal 10.000";
+    }
+
+    if (!formData.production_time) {
+      newErrors.production_time = "Waktu produksi harus diisi";
+    }
+
+    if (!formData.scheduled_date) {
+      newErrors.scheduled_date = "Tanggal penjadwalan harus diisi";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = () => {
+    if (formLoading) return;
+
+    if (!validateForm()) {
       return;
     }
 
-    if (parseInt(formData.production_portion) < 0) {
-      Alert.alert("Error", "Porsi produksi tidak valid");
-      return;
-    }
+    setFormLoading(true);
 
-    // Hapus sppg_name sebelum submit
-    const { sppg_name, ...submitData } = formData;
-    onSubmit({
-      ...submitData,
-      production_portion: parseInt(formData.production_portion),
-      received_portion: parseInt(formData.received_portion),
-    });
+    try {
+      // Format data sesuai backend
+      const submitData = {
+        menu_code: formData.menu_code.trim(),
+        menu_name: formData.menu_name.trim(),
+        sppg_id: formData.sppg_id,
+        production_portion: parseInt(formData.production_portion),
+        production_time: formData.production_time,
+        scheduled_date: formData.scheduled_date,
+        notes: formData.notes.trim() || null,
+        condition: formData.condition,
+      };
+
+      onSubmit(submitData);
+    } catch (error) {
+      Alert.alert("Error", "Terjadi kesalahan saat menyimpan");
+    } finally {
+      setFormLoading(false);
+    }
   };
 
   const handleSelectSPPG = (id: string) => {
-    const selectedSPPG = sppgList.find((s) => s.id === id);
     setFormData({
       ...formData,
       sppg_id: id,
-      sppg_name: selectedSPPG?.sppg_name || "",
     });
+    setErrors({ ...errors, sppg_id: "" });
+    setShowSPPGModal(false);
+  };
+
+  const handleProductionTimeChange = (event: any, selectedDate?: Date) => {
+    setShowProductionTimePicker(false);
+    if (selectedDate) {
+      setFormData({
+        ...formData,
+        production_time: selectedDate.toISOString(),
+      });
+      setErrors({ ...errors, production_time: "" });
+    }
+  };
+
+  const handleScheduledDateChange = (event: any, selectedDate?: Date) => {
+    setShowScheduledDatePicker(false);
+    if (selectedDate) {
+      setFormData({
+        ...formData,
+        scheduled_date: selectedDate.toISOString().split("T")[0],
+      });
+      setErrors({ ...errors, scheduled_date: "" });
+    }
   };
 
   const getSelectedSPPG = () => {
     return sppgList.find((s) => s.id === formData.sppg_id);
   };
 
+  const formatDateTime = (dateTimeString: string) => {
+    try {
+      const date = new Date(dateTimeString);
+      return date.toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (error) {
+      return "Invalid time";
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+    } catch (error) {
+      return "Invalid date";
+    }
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData({ ...formData, [field]: value });
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors({ ...errors, [field]: "" });
+    }
+  };
+
+  if (!visible) return null;
+
   return (
     <>
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={visible}
-        onRequestClose={onClose}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <View style={styles.headerLeft}>
-                <View style={styles.iconContainer}>
-                  <Ionicons name="restaurant" size={20} color="#2563EB" />
-                </View>
+      <Modal transparent visible={visible} animationType="slide">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={styles.modalBackdrop}
+              activeOpacity={1}
+              onPress={formLoading ? undefined : onClose}
+            />
+            <View style={styles.modalContent}>
+              {/* Header */}
+              <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
                   {editItem ? "Edit Menu" : "Tambah Menu Baru"}
                 </Text>
+                <TouchableOpacity
+                  onPress={onClose}
+                  disabled={formLoading}
+                  style={styles.closeButton}
+                >
+                  <Ionicons name="close" size={24} color="#6B7280" />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+              >
+                {/* Menu Code */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>
+                    Kode Menu <Text style={styles.required}>*</Text>
+                  </Text>
+                  <TextInput
+                    value={formData.menu_code}
+                    onChangeText={(v) => handleInputChange("menu_code", v)}
+                    placeholder="Generate otomatis"
+                    style={[
+                      styles.input,
+                      errors.menu_code && styles.inputError,
+                      formLoading && styles.disabledInput,
+                    ]}
+                    placeholderTextColor="#9CA3AF"
+                    editable={!formLoading && !editItem}
+                    autoCapitalize="characters"
+                  />
+                  {errors.menu_code && (
+                    <Text style={styles.errorText}>{errors.menu_code}</Text>
+                  )}
+                </View>
+
+                {/* Menu Name */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>
+                    Nama Menu <Text style={styles.required}>*</Text>
+                  </Text>
+                  <TextInput
+                    value={formData.menu_name}
+                    onChangeText={(v) => handleInputChange("menu_name", v)}
+                    placeholder="Contoh: Nasi Goreng Sayur"
+                    style={[
+                      styles.input,
+                      errors.menu_name && styles.inputError,
+                      formLoading && styles.disabledInput,
+                    ]}
+                    placeholderTextColor="#9CA3AF"
+                    editable={!formLoading}
+                  />
+                  {errors.menu_name && (
+                    <Text style={styles.errorText}>{errors.menu_name}</Text>
+                  )}
+                </View>
+
+                {/* SPPG Picker */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>
+                    SPPG <Text style={styles.required}>*</Text>
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.selectorInput,
+                      errors.sppg_id && styles.inputError,
+                      formLoading && styles.disabledInput,
+                    ]}
+                    onPress={() => !formLoading && setShowSPPGModal(true)}
+                    disabled={formLoading}
+                  >
+                    <View style={styles.selectorContent}>
+                      <Text
+                        style={
+                          getSelectedSPPG()
+                            ? styles.selectorTextSelected
+                            : styles.selectorTextPlaceholder
+                        }
+                        numberOfLines={1}
+                      >
+                        {getSelectedSPPG()?.sppg_name || "Pilih SPPG"}
+                      </Text>
+                      <Ionicons name="chevron-down" size={20} color="#6B7280" />
+                    </View>
+                  </TouchableOpacity>
+                  {errors.sppg_id && (
+                    <Text style={styles.errorText}>{errors.sppg_id}</Text>
+                  )}
+                </View>
+
+                {/* Production Portion */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>
+                    Porsi Produksi <Text style={styles.required}>*</Text>
+                  </Text>
+                  <TextInput
+                    value={formData.production_portion}
+                    onChangeText={(v) =>
+                      handleInputChange(
+                        "production_portion",
+                        v.replace(/[^0-9]/g, ""),
+                      )
+                    }
+                    placeholder="0"
+                    keyboardType="numeric"
+                    style={[
+                      styles.input,
+                      errors.production_portion && styles.inputError,
+                      formLoading && styles.disabledInput,
+                    ]}
+                    placeholderTextColor="#9CA3AF"
+                    editable={!formLoading}
+                  />
+                  {errors.production_portion && (
+                    <Text style={styles.errorText}>
+                      {errors.production_portion}
+                    </Text>
+                  )}
+                </View>
+
+                {/* Production Time */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>
+                    Waktu Produksi <Text style={styles.required}>*</Text>
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.selectorInput,
+                      errors.production_time && styles.inputError,
+                      formLoading && styles.disabledInput,
+                    ]}
+                    onPress={() =>
+                      !formLoading && setShowProductionTimePicker(true)
+                    }
+                    disabled={formLoading}
+                  >
+                    <View style={styles.selectorContent}>
+                      <Text style={styles.selectorTextSelected}>
+                        {formatDateTime(formData.production_time)}
+                      </Text>
+                      <Ionicons name="time-outline" size={20} color="#6B7280" />
+                    </View>
+                  </TouchableOpacity>
+                  {errors.production_time && (
+                    <Text style={styles.errorText}>
+                      {errors.production_time}
+                    </Text>
+                  )}
+                </View>
+
+                {/* Scheduled Date */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>
+                    Tanggal Penjadwalan <Text style={styles.required}>*</Text>
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.selectorInput,
+                      errors.scheduled_date && styles.inputError,
+                      formLoading && styles.disabledInput,
+                    ]}
+                    onPress={() =>
+                      !formLoading && setShowScheduledDatePicker(true)
+                    }
+                    disabled={formLoading}
+                  >
+                    <View style={styles.selectorContent}>
+                      <Text style={styles.selectorTextSelected}>
+                        {formatDate(formData.scheduled_date)}
+                      </Text>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={20}
+                        color="#6B7280"
+                      />
+                    </View>
+                  </TouchableOpacity>
+                  {errors.scheduled_date && (
+                    <Text style={styles.errorText}>
+                      {errors.scheduled_date}
+                    </Text>
+                  )}
+                </View>
+
+                {/* Notes */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Catatan (Opsional)</Text>
+                  <TextInput
+                    value={formData.notes}
+                    onChangeText={(v) => handleInputChange("notes", v)}
+                    placeholder="Tambahkan catatan jika perlu"
+                    multiline
+                    numberOfLines={3}
+                    style={[
+                      styles.textArea,
+                      formLoading && styles.disabledInput,
+                    ]}
+                    placeholderTextColor="#9CA3AF"
+                    editable={!formLoading}
+                  />
+                </View>
+
+                {/* Condition */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Kondisi Menu</Text>
+                  <View style={styles.radioGroup}>
+                    <TouchableOpacity
+                      style={[
+                        styles.radioButton,
+                        formData.condition === "normal" &&
+                          styles.radioButtonActive,
+                      ]}
+                      onPress={() =>
+                        !formLoading &&
+                        setFormData({ ...formData, condition: "normal" })
+                      }
+                      disabled={formLoading}
+                    >
+                      <View style={styles.radioIconContainer}>
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color={
+                            formData.condition === "normal"
+                              ? "#059669"
+                              : "#D1D5DB"
+                          }
+                        />
+                      </View>
+                      <Text
+                        style={[
+                          styles.radioText,
+                          formData.condition === "normal" &&
+                            styles.radioTextActive,
+                        ]}
+                      >
+                        Normal
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.radioButton,
+                        formData.condition === "problematic" &&
+                          styles.radioButtonActive,
+                      ]}
+                      onPress={() =>
+                        !formLoading &&
+                        setFormData({ ...formData, condition: "problematic" })
+                      }
+                      disabled={formLoading}
+                    >
+                      <View style={styles.radioIconContainer}>
+                        <Ionicons
+                          name="warning"
+                          size={20}
+                          color={
+                            formData.condition === "problematic"
+                              ? "#DC2626"
+                              : "#D1D5DB"
+                          }
+                        />
+                      </View>
+                      <Text
+                        style={[
+                          styles.radioText,
+                          formData.condition === "problematic" &&
+                            styles.radioTextActive,
+                        ]}
+                      >
+                        Bermasalah
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </ScrollView>
+
+              {/* Footer Buttons */}
+              <View style={styles.footer}>
+                <TouchableOpacity
+                  onPress={onClose}
+                  style={[
+                    styles.cancelButton,
+                    formLoading && styles.disabledButton,
+                  ]}
+                  disabled={formLoading}
+                >
+                  <Text style={styles.cancelButtonText}>Batal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleSubmit}
+                  style={[
+                    styles.submitButton,
+                    formLoading && styles.disabledSubmit,
+                  ]}
+                  disabled={formLoading}
+                >
+                  {formLoading ? (
+                    <View style={styles.loadingContainer}>
+                      <Ionicons name="refresh" size={20} color="#FFFFFF" />
+                    </View>
+                  ) : (
+                    <Text style={styles.submitButtonText}>
+                      {editItem ? "Update Menu" : "Simpan Menu"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* SPPG Selector Modal */}
+      <Modal transparent visible={showSPPGModal} animationType="slide">
+        <View style={styles.sppgModalOverlay}>
+          <View style={styles.sppgModalContent}>
+            <View style={styles.sppgModalHeader}>
+              <Text style={styles.sppgModalTitle}>Pilih SPPG</Text>
+              <TouchableOpacity
+                style={styles.sppgCloseButton}
+                onPress={() => setShowSPPGModal(false)}
+              >
                 <Ionicons name="close" size={24} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
-            {/* Body */}
-            <ScrollView
-              style={styles.modalBody}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Nama Menu */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>
-                  Nama Menu <Text style={styles.required}>*</Text>
-                </Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={formData.menu_name}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, menu_name: text })
-                  }
-                  placeholder="Contoh: Nasi Goreng Sayur"
-                  placeholderTextColor="#9CA3AF"
-                />
-              </View>
-
-              {/* SPPG Picker */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>
-                  SPPG <Text style={styles.required}>*</Text>
-                </Text>
+            <ScrollView style={styles.sppgListContainer}>
+              {sppgList.map((sppg) => (
                 <TouchableOpacity
-                  style={styles.sppgPicker}
-                  onPress={() => setShowSPPGModal(true)}
+                  key={sppg.id}
+                  style={[
+                    styles.sppgItem,
+                    formData.sppg_id === sppg.id && styles.sppgItemActive,
+                  ]}
+                  onPress={() => handleSelectSPPG(sppg.id)}
                 >
-                  <View style={styles.sppgPickerContent}>
-                    <View style={styles.sppgPickerLeft}>
-                      <View style={styles.sppgIcon}>
-                        <Ionicons name="business" size={20} color="#6B7280" />
-                      </View>
-                      <View style={styles.sppgInfo}>
-                        <Text style={styles.sppgPickerTitle}>
-                          {formData.sppg_name || "Pilih SPPG"}
-                        </Text>
-                        {formData.sppg_name && getSelectedSPPG()?.address && (
-                          <Text style={styles.sppgPickerSubtitle}>
-                            {getSelectedSPPG()?.address}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color="#9CA3AF"
-                    />
+                  <View style={styles.sppgItemContent}>
+                    <Text
+                      style={[
+                        styles.sppgItemText,
+                        formData.sppg_id === sppg.id &&
+                          styles.sppgItemTextActive,
+                      ]}
+                    >
+                      {sppg.sppg_name}
+                    </Text>
+                    {sppg.address && (
+                      <Text style={styles.sppgItemSubtext}>{sppg.address}</Text>
+                    )}
                   </View>
+                  {formData.sppg_id === sppg.id && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={24}
+                      color="#2563EB"
+                    />
+                  )}
                 </TouchableOpacity>
-                {!formData.sppg_id && (
-                  <Text style={styles.helpText}>Klik untuk memilih SPPG</Text>
-                )}
-              </View>
-
-              {/* Porsi */}
-              <View style={styles.formRow}>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>
-                    Porsi Produksi <Text style={styles.required}>*</Text>
-                  </Text>
-                  <TextInput
-                    style={styles.formInput}
-                    value={formData.production_portion}
-                    onChangeText={(text) =>
-                      setFormData({
-                        ...formData,
-                        production_portion: text.replace(/[^0-9]/g, ""),
-                      })
-                    }
-                    placeholder="0"
-                    keyboardType="numeric"
-                    placeholderTextColor="#9CA3AF"
-                  />
+              ))}
+              {sppgList.length === 0 && (
+                <View style={styles.noDataContainer}>
+                  <Ionicons name="business-outline" size={48} color="#D1D5DB" />
+                  <Text style={styles.noDataText}>Tidak ada data SPPG</Text>
                 </View>
-
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.formLabel}>Porsi Diterima</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    value={formData.received_portion}
-                    onChangeText={(text) =>
-                      setFormData({
-                        ...formData,
-                        received_portion: text.replace(/[^0-9]/g, ""),
-                      })
-                    }
-                    placeholder="0"
-                    keyboardType="numeric"
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
-              </View>
-
-              {/* Waktu Produksi */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>
-                  Waktu Produksi <Text style={styles.required}>*</Text>
-                </Text>
-                <View style={styles.inputWithIcon}>
-                  <Ionicons name="time-outline" size={20} color="#6B7280" />
-                  <TextInput
-                    style={styles.formInputWithIcon}
-                    value={formData.production_time}
-                    onChangeText={(text) =>
-                      setFormData({ ...formData, production_time: text })
-                    }
-                    placeholder="YYYY-MM-DDTHH:mm"
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
-                <Text style={styles.helpText}>
-                  Format: {new Date().toISOString().split("T")[0]}T10:00
-                </Text>
-              </View>
-
-              {/* Status Menu */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Status Menu</Text>
-                <View style={styles.radioGroup}>
-                  <TouchableOpacity
-                    style={[
-                      styles.radioCard,
-                      formData.menu_condition === "normal" &&
-                        styles.radioCardActive,
-                    ]}
-                    onPress={() =>
-                      setFormData({ ...formData, menu_condition: "normal" })
-                    }
-                  >
-                    <View style={styles.radioIconContainer}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={24}
-                        color={
-                          formData.menu_condition === "normal"
-                            ? "#059669"
-                            : "#D1D5DB"
-                        }
-                      />
-                    </View>
-                    <Text
-                      style={[
-                        styles.radioLabel,
-                        formData.menu_condition === "normal" &&
-                          styles.radioLabelActive,
-                      ]}
-                    >
-                      Normal
-                    </Text>
-                    <Text style={styles.radioDescription}>
-                      Menu dalam kondisi baik
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.radioCard,
-                      formData.menu_condition === "problematic" &&
-                        styles.radioCardActive,
-                    ]}
-                    onPress={() =>
-                      setFormData({
-                        ...formData,
-                        menu_condition: "problematic",
-                      })
-                    }
-                  >
-                    <View style={styles.radioIconContainer}>
-                      <Ionicons
-                        name="warning"
-                        size={24}
-                        color={
-                          formData.menu_condition === "problematic"
-                            ? "#DC2626"
-                            : "#D1D5DB"
-                        }
-                      />
-                    </View>
-                    <Text
-                      style={[
-                        styles.radioLabel,
-                        formData.menu_condition === "problematic" &&
-                          styles.radioLabelActive,
-                      ]}
-                    >
-                      Bermasalah
-                    </Text>
-                    <Text style={styles.radioDescription}>
-                      Ada kendala pada menu
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+              )}
             </ScrollView>
-
-            {/* Footer */}
-            <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelButtonText}>Batal</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.submitButton}
-                onPress={handleSubmit}
-              >
-                <Ionicons name="checkmark" size={20} color="white" />
-                <Text style={styles.submitButtonText}>
-                  {editItem ? "Update" : "Simpan"}
-                </Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>
 
-      {/* SPPG Selector Modal */}
-      <SPPGSelectorModal
-        visible={showSPPGModal}
-        sppgList={sppgList.map((s) => ({
-          id: s.id,
-          sppg_name: s.sppg_name,
-          address: s.address,
-        }))}
-        selectedId={formData.sppg_id}
-        onSelect={handleSelectSPPG}
-        onClose={() => setShowSPPGModal(false)}
-      />
+      {/* Date/Time Pickers */}
+      {showProductionTimePicker && (
+        <DateTimePicker
+          value={new Date(formData.production_time)}
+          mode="time"
+          display="spinner"
+          onChange={handleProductionTimeChange}
+        />
+      )}
+
+      {showScheduledDatePicker && (
+        <DateTimePicker
+          value={new Date(formData.scheduled_date)}
+          mode="date"
+          display="spinner"
+          onChange={handleScheduledDateChange}
+          minimumDate={new Date()}
+        />
+      )}
     </>
   );
 }
@@ -387,211 +661,277 @@ export default function MenuModal({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
+    backgroundColor: "transparent",
+  },
+  modalBackdrop: {
+    flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "white",
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: "90%",
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
   modalTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#111827",
+    flex: 1,
   },
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
+    padding: 4,
   },
-  modalBody: {
-    padding: 20,
+  scrollView: {
+    maxHeight: 500,
   },
-  formGroup: {
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+  },
+  inputContainer: {
     marginBottom: 20,
   },
-  formLabel: {
+  inputLabel: {
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#374151",
     marginBottom: 8,
   },
   required: {
     color: "#EF4444",
   },
-  formInput: {
+  input: {
     backgroundColor: "#F9FAFB",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#E5E7EB",
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14,
+    paddingVertical: 14,
+    fontSize: 16,
     color: "#111827",
   },
-  inputWithIcon: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
+  inputError: {
+    borderColor: "#DC2626",
+    backgroundColor: "#FEF2F2",
   },
-  formInputWithIcon: {
-    flex: 1,
-    fontSize: 14,
-    color: "#111827",
-  },
-  helpText: {
+  errorText: {
+    color: "#DC2626",
     fontSize: 12,
-    color: "#6B7280",
-    marginTop: 6,
+    marginTop: 4,
+    marginLeft: 4,
   },
-  formRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  // Styles untuk SPPG Picker
-  sppgPicker: {
+  textArea: {
     backgroundColor: "#F9FAFB",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#E5E7EB",
     borderRadius: 12,
-    overflow: "hidden",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: "#111827",
+    textAlignVertical: "top",
+    minHeight: 100,
   },
-  sppgPickerContent: {
+  selectorInput: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  selectorContent: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
   },
-  sppgPickerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    flex: 1,
-  },
-  sppgIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: "white",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  sppgInfo: {
-    flex: 1,
-  },
-  sppgPickerTitle: {
-    fontSize: 14,
-    fontWeight: "500",
+  selectorTextSelected: {
+    fontSize: 16,
     color: "#111827",
-    marginBottom: 2,
+    fontWeight: "500",
+    flex: 1,
   },
-  sppgPickerSubtitle: {
-    fontSize: 12,
-    color: "#6B7280",
+  selectorTextPlaceholder: {
+    fontSize: 16,
+    color: "#9CA3AF",
+    flex: 1,
   },
   radioGroup: {
     flexDirection: "row",
     gap: 12,
   },
-  radioCard: {
+  radioButton: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#F9FAFB",
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: "#E5E7EB",
     borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
+    padding: 14,
+    gap: 10,
   },
-  radioCardActive: {
+  radioButtonActive: {
     borderColor: "#2563EB",
     backgroundColor: "#EFF6FF",
   },
   radioIconContainer: {
-    marginBottom: 8,
+    width: 24,
+    alignItems: "center",
   },
-  radioLabel: {
+  radioText: {
     fontSize: 14,
-    fontWeight: "500",
     color: "#6B7280",
-    marginBottom: 4,
+    fontWeight: "500",
   },
-  radioLabelActive: {
+  radioTextActive: {
     color: "#111827",
+    fontWeight: "600",
   },
-  radioDescription: {
-    fontSize: 11,
-    color: "#9CA3AF",
-    textAlign: "center",
-  },
-  modalFooter: {
+  footer: {
     flexDirection: "row",
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
     gap: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderTopWidth: 1.5,
+    borderTopColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   cancelButton: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#D1D5DB",
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    backgroundColor: "white",
   },
   cancelButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "600",
     color: "#374151",
   },
   submitButton: {
-    flex: 1,
-    flexDirection: "row",
+    flex: 2,
+    paddingVertical: 16,
+    borderRadius: 12,
     backgroundColor: "#2563EB",
-    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
-    gap: 6,
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
   submitButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "600",
-    color: "white",
+    color: "#FFFFFF",
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  disabledInput: {
+    opacity: 0.7,
+    backgroundColor: "#F3F4F6",
+  },
+  disabledSubmit: {
+    backgroundColor: "#93C5FD",
+    shadowOpacity: 0.1,
+  },
+
+  // SPPG Modal Styles
+  sppgModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  sppgModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "70%",
+  },
+  sppgModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  sppgModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  sppgCloseButton: {
+    padding: 4,
+  },
+  sppgListContainer: {
+    paddingHorizontal: 16,
+  },
+  sppgItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderRadius: 12,
+    marginVertical: 4,
+  },
+  sppgItemActive: {
+    backgroundColor: "#EFF6FF",
+  },
+  sppgItemContent: {
+    flex: 1,
+    marginRight: 12,
+  },
+  sppgItemText: {
+    fontSize: 16,
+    color: "#111827",
+    fontWeight: "500",
+  },
+  sppgItemTextActive: {
+    color: "#2563EB",
+    fontWeight: "600",
+  },
+  sppgItemSubtext: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  noDataContainer: {
+    alignItems: "center",
+    paddingVertical: 48,
+  },
+  noDataText: {
+    marginTop: 12,
+    color: "#6B7280",
+    fontSize: 14,
+    textAlign: "center",
   },
 });
