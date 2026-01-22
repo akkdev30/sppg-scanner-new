@@ -31,7 +31,6 @@ export default function Index() {
     );
   }
 
-  // Redirect ke layout utama
   // Navigation akan dihandle oleh app/_layout.tsx
   return <Redirect href="/(auth)/login" />;
 }
