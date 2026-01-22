@@ -1,8 +1,3 @@
-// app/(admin)/users.tsx
-
-import UserDetailModal from "@/components/admin/UserDetailModal";
-import UserList from "@/components/admin/UserList";
-import UserModal from "@/components/admin/UserModal";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
@@ -24,41 +19,27 @@ import { useAuth } from "../../context/AuthContext";
 interface UserItem {
   id: string;
   username: string;
-  role: "admin";
+  role: "admin" | "pic" | "user" | "school_admin" | "school_user";
   full_name?: string;
   email?: string;
   phone_number?: string;
-  school_pic_id?: string;
-  school_pic_name?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  last_login_at?: string;
-  created_by?: string;
 }
 
 interface SPPGOption {
   id: string;
-  sppg_code: string;
   sppg_name: string;
   address?: string;
-  phone_number?: string;
-  email?: string;
 }
 
-interface SchoolPICOption {
+interface SchoolOption {
   id: string;
   name: string;
-  school_name?: string;
-  school_code?: string;
-  phone_number?: string;
-  email?: string;
-  position?: string;
-  is_active: boolean;
+  school_code: string;
+  sppg_id?: string;
 }
-
-const API_URL =
-  process.env.API_URL_SERVER || "https://sppg-backend-new.vercel.app/api";
 
 export default function UserManagementScreen() {
   const { user: currentUser, getToken } = useAuth();
@@ -68,98 +49,102 @@ export default function UserManagementScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [userList, setUserList] = useState<UserItem[]>([]);
-  const [schoolPICList, setSchoolPICList] = useState<SchoolPICOption[]>([]);
-  const [isLoadingPIC, setIsLoadingPIC] = useState(false);
+  const [sppgList, setSppgList] = useState<SPPGOption[]>([]);
+  const [schoolList, setSchoolList] = useState<SchoolOption[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [editItem, setEditItem] = useState<UserItem | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
-  const [filterRole, setFilterRole] = useState<"admin">("admin");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showInactive, setShowInactive] = useState(false);
+  const [formData, setFormData] = useState({
+    username: "",
+    password: "",
+    confirmPassword: "",
+    role: "pic" as "admin" | "pic" | "user" | "school_admin" | "school_user",
+    full_name: "",
+    email: "",
+    phone_number: "",
+    school_id: "",
+    position: "",
+    is_active: true,
+  });
+  const [showSPPGModal, setShowSPPGModal] = useState(false);
+  const [showSchoolModal, setShowSchoolModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [selectedSppgId, setSelectedSppgId] = useState<string>("");
+  const [filterRole, setFilterRole] = useState<
+    "all" | "admin" | "pic" | "user" | "school_admin" | "school_user"
+  >("all");
 
-  useEffect(() => {
-    loadInitialData();
-  }, []);
-
-  const loadInitialData = async () => {
-    try {
-      setLoading(true);
-      await Promise.all([loadUsers(), loadSchoolPICList()]);
-    } catch (error) {
-      console.error("Load initial data error:", error);
-      Alert.alert("Error", "Gagal memuat data awal");
-    } finally {
-      setLoading(false);
-    }
+  const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
+    const token = await getToken();
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
   };
 
   const loadUsers = async () => {
     try {
-      const token = await getToken();
-      const res = await fetch(`${API_URL}/dashboard/admin/users`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
+      const response = await fetchWithAuth(`${API_URL}/users`);
+      const data = await response.json();
       if (data.success) {
         setUserList(data.data || []);
       } else {
         Alert.alert("Error", data.error || "Gagal memuat data pengguna");
       }
     } catch (error) {
-      console.error("Load users error:", error);
-      Alert.alert(
-        "Error",
-        error instanceof Error ? error.message : "Gagal memuat data pengguna",
-      );
+      Alert.alert("Error", "Gagal memuat data pengguna");
     }
   };
 
-  const loadSchoolPICList = async () => {
+  const loadSPPGList = async () => {
     try {
-      setIsLoadingPIC(true);
-      const token = await getToken();
-      const res = await fetch(
-        `${API_URL}/dashboard/admin/school-pics?is_active=true`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        },
-      );
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
+      const response = await fetchWithAuth(`${API_URL}/sppg`);
+      const data = await response.json();
       if (data.success) {
-        setSchoolPICList(data.data || []);
+        setSppgList(data.data || []);
       }
     } catch (error) {
-      console.error("Load school PIC error:", error);
-      Alert.alert("Error", "Gagal memuat data PIC sekolah");
-    } finally {
-      setIsLoadingPIC(false);
+      console.error("Error loading SPPG:", error);
     }
   };
+
+  const loadSchoolList = async () => {
+    try {
+      const response = await fetchWithAuth(`${API_URL}/schools`);
+      const data = await response.json();
+      if (data.success) {
+        setSchoolList(data.data || []);
+      }
+    } catch (error) {
+      console.error("Error loading schools:", error);
+    }
+  };
+
+  const loadInitialData = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([loadUsers(), loadSPPGList(), loadSchoolList()]);
+    } catch (error) {
+      console.error("Error loading initial data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadInitialData();
+  }, []);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    Promise.all([loadUsers(), loadSchoolPICList()]).finally(() =>
-      setRefreshing(false),
-    );
+    loadUsers().finally(() => setRefreshing(false));
   };
 
   const handleCreate = () => {
@@ -192,147 +177,194 @@ export default function UserManagementScreen() {
 
   const handleDeactivate = async (id: string, username: string) => {
     if (id === currentUser?.id) {
-      Alert.alert("Error", "Anda tidak dapat menonaktifkan akun Anda sendiri");
+      Alert.alert("Error", "Anda tidak dapat menghapus akun sendiri");
       return;
     }
 
     Alert.alert(
-      "Nonaktifkan User",
-      `Apakah Anda yakin ingin menonaktifkan user ${username}?`,
+      "Konfirmasi Hapus",
+      `Apakah Anda yakin ingin menghapus user "${username}"?`,
       [
         { text: "Batal", style: "cancel" },
         {
           text: "Nonaktifkan",
           style: "destructive",
-          onPress: () => toggleUserStatus(id, false),
+          onPress: () => confirmDeleteUser(id),
         },
       ],
     );
   };
 
-  const handleActivate = async (id: string, username: string) => {
-    Alert.alert(
-      "Aktifkan User",
-      `Apakah Anda yakin ingin mengaktifkan kembali user ${username}?`,
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Aktifkan",
-          onPress: () => toggleUserStatus(id, true),
-        },
-      ],
-    );
-  };
-
-  const toggleUserStatus = async (id: string, isActive: boolean) => {
+  const confirmDeleteUser = async (id: string) => {
     try {
-      const token = await getToken();
-      const res = await fetch(`${API_URL}/dashboard/admin/users/${id}/status`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ is_active: isActive }),
+      const response = await fetchWithAuth(`${API_URL}/users/${id}`, {
+        method: "DELETE",
       });
       const data = await response.json();
       if (data.success) {
-        Alert.alert(
-          "Berhasil",
-          `User berhasil ${isActive ? "diaktifkan" : "dinonaktifkan"}`,
-        );
+        Alert.alert("Berhasil", data.message || "User berhasil dihapus");
         loadUsers();
       } else {
-        Alert.alert(
-          "Error",
-          data.error ||
-            `Gagal ${isActive ? "mengaktifkan" : "menonaktifkan"} user`,
-        );
+        Alert.alert("Error", data.error || "Gagal menghapus user");
       }
     } catch (error) {
-      console.error("Toggle status error:", error);
-      Alert.alert("Error", "Terjadi kesalahan saat mengubah status user");
+      Alert.alert("Error", "Gagal menghapus user");
     }
   };
 
-  const handleSubmit = async (formData: any) => {
-    if (submitting) return;
+  const resetForm = () => {
+    setFormData({
+      username: "",
+      password: "",
+      confirmPassword: "",
+      role: "pic",
+      full_name: "",
+      email: "",
+      phone_number: "",
+      school_id: "",
+      position: "",
+      is_active: true,
+    });
+    setSelectedSppgId("");
+  };
+
+  const rolesRequiringSchool = ["pic", "school_admin", "school_user"];
+
+  const handleSubmit = async () => {
+    if (formLoading) return;
+
+    if (!formData.username.trim()) {
+      Alert.alert("Error", "Username wajib diisi");
+      return;
+    }
+
+    const usernameRegex = /^[a-zA-Z0-9._-]{3,50}$/;
+    if (!usernameRegex.test(formData.username)) {
+      Alert.alert(
+        "Error",
+        "Username harus 3-50 karakter, hanya boleh mengandung huruf, angka, titik (.), garis bawah (_), dan tanda minus (-)",
+      );
+      return;
+    }
+
+    if (!editItem) {
+      if (!formData.password) {
+        Alert.alert("Error", "Password wajib diisi");
+        return;
+      }
+      if (formData.password.length < 6) {
+        Alert.alert("Error", "Password minimal 6 karakter");
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        Alert.alert("Error", "Password tidak cocok");
+        return;
+      }
+    }
+
+    if (editItem && formData.password) {
+      if (formData.password.length < 6) {
+        Alert.alert("Error", "Password minimal 6 karakter");
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        Alert.alert("Error", "Password tidak cocok");
+        return;
+      }
+    }
+
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      Alert.alert("Error", "Format email tidak valid");
+      return;
+    }
+
+    if (rolesRequiringSchool.includes(formData.role) && !formData.school_id) {
+      Alert.alert("Error", "Sekolah wajib dipilih untuk role ini");
+      return;
+    }
+
+    const payload: any = {
+      username: formData.username.trim(),
+      role: formData.role,
+      full_name: formData.full_name.trim() || null,
+      email: formData.email.trim() || null,
+      phone_number: formData.phone_number.trim() || null,
+      is_active: formData.is_active,
+    };
+
+    if (!editItem || formData.password) {
+      payload.password = formData.password;
+    }
+
+    if (rolesRequiringSchool.includes(formData.role)) {
+      payload.school_id = formData.school_id;
+      payload.position = formData.position.trim() || formData.role;
+    }
+
+    if (editItem && editItem.school_pic_id) {
+      delete payload.school_id;
+      delete payload.position;
+    }
+
+    setFormLoading(true);
 
     try {
-      setSubmitting(true);
-      const token = await getToken();
-
       const endpoint = editItem
-        ? `${API_URL}/dashboard/admin/users/${editItem.id}`
-        : `${API_URL}/dashboard/admin/users`;
-
+        ? `${API_URL}/users/${editItem.id}`
+        : `${API_URL}/users`;
       const method = editItem ? "PUT" : "POST";
-
-      // Siapkan payload sesuai dengan API createUser yang sudah diperbaiki
-      const payload: any = {
-        username: formData.username.trim(),
-        role: formData.role,
-        full_name: formData.full_name?.trim() || null,
-        email: formData.email?.trim() || null,
-        phone_number: formData.phone_number?.trim() || null,
-        school_pic_id: formData.role === "pic" ? formData.school_pic_id : null,
-        is_active: formData.is_active,
-      };
-
-      // Hanya tambahkan password jika ada (untuk create) atau diisi (untuk edit)
-      if (!editItem || formData.password) {
-        payload.password = formData.password;
-      }
-
-      const res = await fetch(endpoint, {
+      const response = await fetchWithAuth(endpoint, {
         method,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
         body: JSON.stringify(payload),
       });
-
-      const data = await res.json();
-
+      const data = await response.json();
       if (data.success) {
-        Alert.alert(
-          "Berhasil",
-          editItem ? "User berhasil diperbarui" : "User berhasil dibuat",
-        );
+        Alert.alert("Berhasil", data.message || "User berhasil disimpan");
         setModalVisible(false);
         loadUsers();
       } else {
         Alert.alert("Error", data.error || "Gagal menyimpan user");
       }
     } catch (error) {
-      console.error("Submit error:", error);
-      Alert.alert("Error", "Terjadi kesalahan saat menyimpan user");
+      Alert.alert("Error", "Gagal menyimpan user");
     } finally {
-      setSubmitting(false);
+      setFormLoading(false);
     }
   };
 
-  // Filter dan pencarian
-  const filteredUsers = userList.filter((user) => {
-    const matchesRole = user.role === filterRole;
-    const matchesSearch =
-      searchQuery === "" ||
-      user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = showInactive ? true : user.is_active;
+  const filteredUsers =
+    filterRole === "all"
+      ? userList
+      : userList.filter((u) => u.role === filterRole);
+  const filteredSchools = selectedSppgId
+    ? schoolList.filter((school) => school.sppg_id === selectedSppgId)
+    : schoolList;
+  const selectedSchool = schoolList.find((s) => s.id === formData.school_id);
 
-    return matchesRole && matchesSearch && matchesStatus;
-  });
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "#DC2626";
+      case "pic":
+        return "#059669";
+      case "school_admin":
+        return "#7C3AED";
+      case "school_user":
+        return "#EA580C";
+      case "user":
+        return "#2563EB";
+      default:
+        return "#6B7280";
+    }
+  };
 
-  // Hitung statistik
-  const activeUsersCount = userList.filter((u) => u.is_active).length;
-  const inactiveUsersCount = userList.length - activeUsersCount;
-  const roleCounts = {
-    admin: userList.filter((u) => u.role === "admin" && u.is_active).length,
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("id-ID", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
   };
 
   if (loading && !refreshing) {
@@ -348,23 +380,9 @@ export default function UserManagementScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#374151" />
-          </TouchableOpacity>
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>Manajemen User</Text>
-            <Text style={styles.headerSubtitle}>
-              {userList.length} user • {activeUsersCount} aktif •{" "}
-              {inactiveUsersCount} nonaktif
-            </Text>
-          </View>
-        </View>
+        <Text style={styles.headerTitle}>Manajemen Pengguna</Text>
         <TouchableOpacity style={styles.addButton} onPress={handleCreate}>
-          <Ionicons name="person-add-outline" size={22} color="white" />
+          <Ionicons name="person-add" size={20} color="white" />
           <Text style={styles.addButtonText}>Tambah</Text>
         </TouchableOpacity>
       </View>
@@ -432,7 +450,6 @@ export default function UserManagementScreen() {
           />
         }
       >
-<<<<<<< HEAD
         {filteredUsers.map((item) => (
           <View key={item.id} style={styles.card}>
             <TouchableOpacity
@@ -536,43 +553,6 @@ export default function UserManagementScreen() {
               <Text style={styles.modalTitle}>
                 {editItem ? "Edit User" : "Tambah User Baru"}
               </Text>
-=======
-        {filteredUsers.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="people-outline" size={64} color="#D1D5DB" />
-            <Text style={styles.emptyStateTitle}>
-              {searchQuery ? "User tidak ditemukan" : "Belum ada user"}
-            </Text>
-            <Text style={styles.emptyStateSubtitle}>
-              {searchQuery
-                ? "Coba gunakan kata kunci lain"
-                : "Tambahkan user baru untuk mulai mengelola"}
-            </Text>
-          </View>
-        ) : (
-          <UserList
-            userList={filteredUsers}
-            currentUserId={currentUser?.id || ""}
-            onEdit={handleEdit}
-            onDeactivate={handleDeactivate}
-            onActivate={handleActivate}
-            onViewDetail={handleViewDetail}
-          />
-        )}
-      </ScrollView>
-
-      {/* Modals */}
-      <UserModal
-        visible={modalVisible}
-        editItem={editItem}
-        schoolPICList={schoolPICList}
-        isLoadingPIC={isLoadingPIC}
-        sppgList={[]} // Tidak digunakan di modal baru
-        onClose={() => setModalVisible(false)}
-        onSubmit={handleSubmit}
-        isSubmitting={submitting}
-      />
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
 
               <View style={{ marginBottom: 16 }}>
                 <Text style={styles.inputLabel}>Username *</Text>
@@ -1109,52 +1089,20 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: "white",
-<<<<<<< HEAD
     padding: 20,
     paddingTop: 24,
-=======
-    paddingHorizontal: 20,
-    paddingVertical: 16,
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-<<<<<<< HEAD
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
   headerTitle: {
     fontSize: 22,
-=======
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  headerText: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 24,
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
     fontWeight: "bold",
     color: "#111827",
   },
   addButton: {
-<<<<<<< HEAD
     flexDirection: "row",
     backgroundColor: "#2563EB",
     paddingHorizontal: 20,
@@ -1175,29 +1123,9 @@ const styles = StyleSheet.create({
   },
   filterContainer: {
     backgroundColor: "white",
-=======
-    backgroundColor: "#2563EB",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 8,
-  },
-  addButtonText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  statsContainer: {
-    backgroundColor: "white",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
-<<<<<<< HEAD
   filterScrollContent: {
     paddingVertical: 14,
     paddingHorizontal: 20,
@@ -1210,18 +1138,9 @@ const styles = StyleSheet.create({
     marginRight: 10,
     minHeight: 40,
     justifyContent: "center",
-=======
-  statCard: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    minWidth: 100,
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
     alignItems: "center",
     marginRight: 12,
   },
-<<<<<<< HEAD
   filterActive: {
     backgroundColor: "#2563EB",
     shadowColor: "#2563EB",
@@ -1238,121 +1157,10 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: "white",
     fontWeight: "600",
-=======
-  statCardActive: {
-    backgroundColor: "#EFF6FF",
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#111827",
-  },
-  statValueActive: {
-    color: "#2563EB",
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 4,
-  },
-  statLabelActive: {
-    color: "#2563EB",
-  },
-  filterSection: {
-    backgroundColor: "white",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 16,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 14,
-    color: "#111827",
-  },
-  filterRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  roleFilterContainer: {
-    flex: 1,
-  },
-  roleFilterButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  roleFilterButtonActive: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#2563EB",
-    borderWidth: 1,
-  },
-  roleFilterText: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  roleFilterTextActive: {
-    color: "#2563EB",
-  },
-  roleBadge: {
-    backgroundColor: "#E5E7EB",
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginLeft: 6,
-  },
-  roleBadgeActive: {
-    backgroundColor: "#2563EB",
-  },
-  roleBadgeText: {
-    fontSize: 11,
-    color: "#374151",
-    fontWeight: "600",
-  },
-  inactiveToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginLeft: 8,
-  },
-  inactiveToggleActive: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#2563EB",
-    borderWidth: 1,
-  },
-  inactiveToggleText: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginLeft: 4,
-    fontWeight: "500",
-  },
-  inactiveToggleTextActive: {
-    color: "#2563EB",
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
   },
   content: {
     flex: 1,
   },
-<<<<<<< HEAD
   card: {
     backgroundColor: "white",
     borderRadius: 16,
@@ -1750,25 +1558,5 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: "700",
-=======
-  emptyState: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-    paddingHorizontal: 20,
-  },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#111827",
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyStateSubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
->>>>>>> 59c95239196091e77c703aa951553c963edd6ec2
   },
 });

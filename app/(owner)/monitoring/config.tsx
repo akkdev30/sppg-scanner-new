@@ -1,8 +1,7 @@
 // app/(owner)/monitoring/config.ts
 
-import { StyleSheet } from "react-native";
 import React from "react";
-import { Text } from "react-native";
+import { StyleSheet, Text } from "react-native";
 
 // Column config type
 export type TableColumn = {
@@ -16,7 +15,7 @@ export type TableColumn = {
 export type TableFilter = {
   label: string;
   options: Array<{ value: any; label: string }>;
-  type?: 'select' | 'date' | 'boolean' | 'search' | 'number';
+  type?: "select" | "date" | "boolean" | "search" | "number";
 };
 
 // Helper functions untuk styling
@@ -114,8 +113,138 @@ const styles = StyleSheet.create({
   },
 });
 
+// Render function helpers
+const renderRoleBadge = (value: any) => (
+  <Text style={[styles.roleBadge, { backgroundColor: getRoleColor(value) }]}>
+    {value?.toUpperCase() || "USER"}
+  </Text>
+);
+
+const renderStatusBadge = (value: any, backgroundColor: string) => (
+  <Text style={[styles.statusBadge, { backgroundColor }]}>
+    {value ? "Active" : "Inactive"}
+  </Text>
+);
+
+const renderDate = (value: any) => (
+  <Text style={styles.cellText}>
+    {value ? new Date(value).toLocaleDateString("id-ID") : "Never"}
+  </Text>
+);
+
+const renderCreatedAt = (value: any) => (
+  <Text style={styles.cellText}>
+    {new Date(value).toLocaleDateString("id-ID")}
+  </Text>
+);
+
+const renderMenuStatus = (value: any) => (
+  <Text
+    style={[styles.statusBadge, { backgroundColor: getMenuStatusColor(value) }]}
+  >
+    {value?.toUpperCase() || "PENDING"}
+  </Text>
+);
+
+const renderMenuCondition = (value: any) => (
+  <Text
+    style={[
+      styles.statusBadge,
+      { backgroundColor: getMenuConditionColor(value) },
+    ]}
+  >
+    {value?.toUpperCase() || "NORMAL"}
+  </Text>
+);
+
+const renderProductionTime = (value: any) => (
+  <Text style={styles.cellText}>
+    {value
+      ? new Date(value).toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "-"}
+  </Text>
+);
+
+const renderDistributionStatus = (value: any) => (
+  <Text
+    style={[
+      styles.statusBadge,
+      { backgroundColor: getDistributionStatusColor(value) },
+    ]}
+  >
+    {value?.toUpperCase() || "PENDING"}
+  </Text>
+);
+
+const renderDistributionCondition = (value: any) => (
+  <Text
+    style={[
+      styles.statusBadge,
+      { backgroundColor: getDistributionConditionColor(value) },
+    ]}
+  >
+    {value?.toUpperCase() || "NORMAL"}
+  </Text>
+);
+
+const renderReceivedAt = (value: any) => (
+  <Text style={styles.cellText}>
+    {value ? new Date(value).toLocaleDateString("id-ID") : "-"}
+  </Text>
+);
+
+const renderReportStatus = (value: any) => (
+  <Text
+    style={[
+      styles.statusBadge,
+      { backgroundColor: getReportStatusColor(value) },
+    ]}
+  >
+    {value?.toUpperCase()}
+  </Text>
+);
+
+const renderUsedBadge = (value: any) => (
+  <Text
+    style={[
+      styles.statusBadge,
+      { backgroundColor: value ? "#FEE2E2" : "#D1FAE5" },
+    ]}
+  >
+    {value ? "Yes" : "No"}
+  </Text>
+);
+
+const renderDateTime = (value: any) => (
+  <Text style={styles.cellText}>{new Date(value).toLocaleString("id-ID")}</Text>
+);
+
+const renderTextCell = (value: any) => (
+  <Text style={styles.cellText}>{value || "N/A"}</Text>
+);
+
 // Config untuk setiap tabel
-export const TABLE_CONFIGS = {
+export const TABLE_CONFIGS: {
+  [key: string]: {
+    displayName: string;
+    icon: string;
+    description: string;
+    searchableColumns: string[];
+    columns: TableColumn[];
+    filters?: {
+      [key: string]: TableFilter;
+    };
+    actions?: {
+      view?: boolean;
+      edit?: boolean;
+      delete?: boolean;
+      export?: boolean;
+    };
+  };
+} = {
   users: {
     displayName: "Users",
     icon: "people",
@@ -126,50 +255,30 @@ export const TABLE_CONFIGS = {
       { key: "full_name", label: "Full Name", width: 150 },
       { key: "email", label: "Email", width: 150 },
       { key: "phone_number", label: "Phone", width: 120 },
-      { 
-        key: "role", 
-        label: "Role", 
+      {
+        key: "role",
+        label: "Role",
         width: 100,
-        render: (value: any) => (
-          <Text style={[styles.roleBadge, { backgroundColor: getRoleColor(value) }]}>
-            {value?.toUpperCase() || "USER"}
-          </Text>
-        ),
+        render: renderRoleBadge,
       },
       {
         key: "is_active",
         label: "Status",
         width: 80,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: value ? "#D1FAE5" : "#FEE2E2" },
-            ]}
-          >
-            {value ? "Active" : "Inactive"}
-          </Text>
-        ),
+        render: (value: any) =>
+          renderStatusBadge(value, value ? "#D1FAE5" : "#FEE2E2"),
       },
       {
         key: "last_login_at",
         label: "Last Login",
         width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {value ? new Date(value).toLocaleDateString("id-ID") : "Never"}
-          </Text>
-        ),
+        render: renderDate,
       },
       {
         key: "created_at",
         label: "Created",
         width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
+        render: renderCreatedAt,
       },
     ],
     filters: {
@@ -202,7 +311,13 @@ export const TABLE_CONFIGS = {
     displayName: "SPPG Masters",
     icon: "business",
     description: "Data penyedia makanan (Supplier/Pusat Produksi)",
-    searchableColumns: ["sppg_code", "sppg_name", "email", "phone_number", "address"],
+    searchableColumns: [
+      "sppg_code",
+      "sppg_name",
+      "email",
+      "phone_number",
+      "address",
+    ],
     columns: [
       { key: "sppg_code", label: "SPPG Code", width: 120 },
       { key: "sppg_name", label: "SPPG Name", width: 150 },
@@ -213,21 +328,13 @@ export const TABLE_CONFIGS = {
         key: "created_at",
         label: "Created",
         width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
+        render: renderCreatedAt,
       },
       {
         key: "updated_at",
         label: "Updated",
         width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
+        render: renderCreatedAt,
       },
     ],
     filters: {},
@@ -247,23 +354,17 @@ export const TABLE_CONFIGS = {
       { key: "name", label: "School Name", width: 180 },
       { key: "address", label: "Address", width: 200 },
       { key: "total_students", label: "Students", width: 100 },
-      { 
-        key: "sppg_name", 
-        label: "SPPG", 
+      {
+        key: "sppg_name",
+        label: "SPPG",
         width: 120,
-        render: (value: any, item?: any) => (
-          <Text style={styles.cellText}>{item?.sppg_name || "N/A"}</Text>
-        ),
+        render: renderTextCell,
       },
       {
         key: "created_at",
         label: "Created",
         width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
+        render: renderCreatedAt,
       },
     ],
     filters: {
@@ -294,26 +395,14 @@ export const TABLE_CONFIGS = {
         key: "is_active",
         label: "Status",
         width: 80,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: value ? "#D1FAE5" : "#FEE2E2" },
-            ]}
-          >
-            {value ? "Active" : "Inactive"}
-          </Text>
-        ),
+        render: (value: any) =>
+          renderStatusBadge(value, value ? "#D1FAE5" : "#FEE2E2"),
       },
       {
         key: "created_at",
         label: "Created",
         width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
+        render: renderCreatedAt,
       },
     ],
     filters: {
@@ -337,87 +426,6 @@ export const TABLE_CONFIGS = {
       export: true,
     },
   },
-  menu_categories: {
-    displayName: "Menu Categories",
-    icon: "fast-food",
-    description: "Kategori menu makanan",
-    searchableColumns: ["category_code", "category_name", "description"],
-    columns: [
-      { key: "category_code", label: "Category Code", width: 120 },
-      { key: "category_name", label: "Category Name", width: 150 },
-      { key: "description", label: "Description", width: 200 },
-      {
-        key: "created_at",
-        label: "Created",
-        width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-      {
-        key: "updated_at",
-        label: "Updated",
-        width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-    ],
-    filters: {},
-    actions: {
-      view: true,
-      edit: true,
-      export: true,
-    },
-  },
-  menu_items: {
-    displayName: "Menu Items",
-    icon: "restaurant",
-    description: "Item menu makanan",
-    searchableColumns: ["item_code", "item_name", "description"],
-    columns: [
-      { key: "item_code", label: "Item Code", width: 120 },
-      { key: "item_name", label: "Item Name", width: 180 },
-      { key: "category_name", label: "Category", width: 120 },
-      { key: "description", label: "Description", width: 200 },
-      {
-        key: "created_at",
-        label: "Created",
-        width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-      {
-        key: "updated_at",
-        label: "Updated",
-        width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-    ],
-    filters: {
-      category_id: {
-        label: "Category",
-        type: "select",
-        options: [], // Akan diisi dinamis
-      },
-    },
-    actions: {
-      view: true,
-      edit: true,
-      export: true,
-    },
-  },
   menus: {
     displayName: "Menus",
     icon: "calendar",
@@ -431,62 +439,32 @@ export const TABLE_CONFIGS = {
         key: "scheduled_date",
         label: "Scheduled Date",
         width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
+        render: renderCreatedAt,
       },
       {
         key: "production_time",
         label: "Production Time",
         width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {value ? new Date(value).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) : "-"}
-          </Text>
-        ),
+        render: renderProductionTime,
       },
       { key: "production_portion", label: "Portion", width: 100 },
       {
         key: "status",
         label: "Status",
         width: 100,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getMenuStatusColor(value) },
-            ]}
-          >
-            {value?.toUpperCase() || "PENDING"}
-          </Text>
-        ),
+        render: renderMenuStatus,
       },
       {
         key: "condition",
         label: "Condition",
         width: 100,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getMenuConditionColor(value) },
-            ]}
-          >
-            {value?.toUpperCase() || "NORMAL"}
-          </Text>
-        ),
+        render: renderMenuCondition,
       },
       {
         key: "created_at",
         label: "Created",
         width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
+        render: renderCreatedAt,
       },
     ],
     filters: {
@@ -527,54 +505,6 @@ export const TABLE_CONFIGS = {
       export: true,
     },
   },
-  menu_details: {
-    displayName: "Menu Details",
-    icon: "list",
-    description: "Detail komposisi menu",
-    searchableColumns: ["menu_name", "item_name"],
-    columns: [
-      { key: "menu_name", label: "Menu", width: 150 },
-      { key: "item_name", label: "Item", width: 150 },
-      { key: "quantity", label: "Quantity", width: 80 },
-      { key: "unit", label: "Unit", width: 80 },
-      {
-        key: "created_at",
-        label: "Created",
-        width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-      {
-        key: "updated_at",
-        label: "Updated",
-        width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
-      },
-    ],
-    filters: {
-      menu_id: {
-        label: "Menu",
-        type: "select",
-        options: [], // Akan diisi dinamis
-      },
-      menu_item_id: {
-        label: "Menu Item",
-        type: "select",
-        options: [], // Akan diisi dinamis
-      },
-    },
-    actions: {
-      view: true,
-      export: true,
-    },
-  },
   school_menu_distribution: {
     displayName: "Distribution",
     icon: "car",
@@ -590,51 +520,25 @@ export const TABLE_CONFIGS = {
         key: "received_status",
         label: "Status",
         width: 100,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getDistributionStatusColor(value) },
-            ]}
-          >
-            {value?.toUpperCase() || "PENDING"}
-          </Text>
-        ),
+        render: renderDistributionStatus,
       },
       {
         key: "received_condition",
         label: "Condition",
         width: 100,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getDistributionConditionColor(value) },
-            ]}
-          >
-            {value?.toUpperCase() || "NORMAL"}
-          </Text>
-        ),
+        render: renderDistributionCondition,
       },
       {
         key: "received_at",
         label: "Received At",
         width: 140,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {value ? new Date(value).toLocaleDateString("id-ID") : "-"}
-          </Text>
-        ),
+        render: renderReceivedAt,
       },
       {
         key: "created_at",
         label: "Created",
         width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
+        render: renderCreatedAt,
       },
     ],
     filters: {
@@ -677,23 +581,19 @@ export const TABLE_CONFIGS = {
     displayName: "Problem Reports",
     icon: "warning",
     description: "Laporan masalah dalam distribusi",
-    searchableColumns: ["problem_type", "description", "resolution_notes", "reported_by_name"],
+    searchableColumns: [
+      "problem_type",
+      "description",
+      "resolution_notes",
+      "reported_by_name",
+    ],
     columns: [
       { key: "problem_type", label: "Type", width: 120 },
       {
         key: "status",
         label: "Status",
         width: 120,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getReportStatusColor(value) },
-            ]}
-          >
-            {value?.toUpperCase()}
-          </Text>
-        ),
+        render: renderReportStatus,
       },
       { key: "description", label: "Description", width: 200 },
       { key: "reported_by_name", label: "Reported By", width: 120 },
@@ -701,21 +601,13 @@ export const TABLE_CONFIGS = {
         key: "created_at",
         label: "Reported",
         width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
+        render: renderCreatedAt,
       },
       {
         key: "resolved_at",
         label: "Resolved",
         width: 120,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {value ? new Date(value).toLocaleDateString("id-ID") : "-"}
-          </Text>
-        ),
+        render: renderReceivedAt,
       },
     ],
     filters: {
@@ -753,51 +645,34 @@ export const TABLE_CONFIGS = {
     searchableColumns: ["qr_code_data", "reference_type", "reference_id"],
     columns: [
       { key: "qr_code_data", label: "QR Data", width: 180 },
-      { key: "school_menu_distribution_id", label: "Distribution ID", width: 100 },
+      {
+        key: "school_menu_distribution_id",
+        label: "Distribution ID",
+        width: 100,
+      },
       {
         key: "is_used",
         label: "Used",
         width: 80,
-        render: (value: any) => (
-          <Text
-            style={[
-              styles.statusBadge,
-              { backgroundColor: value ? "#FEE2E2" : "#D1FAE5" },
-            ]}
-          >
-            {value ? "Yes" : "No"}
-          </Text>
-        ),
+        render: renderUsedBadge,
       },
       {
         key: "generated_at",
         label: "Generated",
         width: 140,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
+        render: renderCreatedAt,
       },
       {
         key: "used_at",
         label: "Used At",
         width: 140,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {value ? new Date(value).toLocaleDateString("id-ID") : "-"}
-          </Text>
-        ),
+        render: renderReceivedAt,
       },
       {
         key: "expires_at",
         label: "Expires",
         width: 140,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {value ? new Date(value).toLocaleDateString("id-ID") : "-"}
-          </Text>
-        ),
+        render: renderReceivedAt,
       },
     ],
     filters: {
@@ -827,21 +702,13 @@ export const TABLE_CONFIGS = {
         key: "scanned_at",
         label: "Scanned At",
         width: 140,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleString("id-ID")}
-          </Text>
-        ),
+        render: renderDateTime,
       },
       {
         key: "created_at",
         label: "Created",
         width: 140,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleDateString("id-ID")}
-          </Text>
-        ),
+        render: renderCreatedAt,
       },
     ],
     filters: {
@@ -860,7 +727,12 @@ export const TABLE_CONFIGS = {
     displayName: "Activity Logs",
     icon: "analytics",
     description: "Log aktivitas pengguna dalam sistem",
-    searchableColumns: ["activity_type", "description", "user_name", "ip_address"],
+    searchableColumns: [
+      "activity_type",
+      "description",
+      "user_name",
+      "ip_address",
+    ],
     columns: [
       { key: "user_name", label: "User", width: 120 },
       { key: "activity_type", label: "Activity Type", width: 120 },
@@ -870,11 +742,7 @@ export const TABLE_CONFIGS = {
         key: "created_at",
         label: "Timestamp",
         width: 160,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleString("id-ID")}
-          </Text>
-        ),
+        render: renderDateTime,
       },
     ],
     filters: {
@@ -921,11 +789,7 @@ export const TABLE_CONFIGS = {
         key: "performed_at",
         label: "Timestamp",
         width: 160,
-        render: (value: any) => (
-          <Text style={styles.cellText}>
-            {new Date(value).toLocaleString("id-ID")}
-          </Text>
-        ),
+        render: renderDateTime,
       },
     ],
     filters: {
@@ -960,23 +824,15 @@ export const TABLE_CONFIGS = {
       export: true,
     },
   },
-} as const; // Gunakan const assertion untuk type safety
+};
 
-// Tipe untuk TABLE_CONFIGS
-export type TableConfigsType = typeof TABLE_CONFIGS;
-export type TableName = keyof TableConfigsType;
-export type TableConfig = TableConfigsType[TableName];
-
-const getTableColor = (tableId: string): string => {
+const getTableColor = (tableId: string) => {
   const colors: Record<string, string> = {
     users: "#3B82F6",
     sppg_masters: "#10B981",
     schools: "#8B5CF6",
     school_pics: "#F59E0B",
-    menu_categories: "#EC4899",
-    menu_items: "#14B8A6",
     menus: "#F97316",
-    menu_details: "#8B5CF6",
     school_menu_distribution: "#EF4444",
     problem_reports: "#DC2626",
     qr_codes: "#6366F1",
@@ -987,23 +843,51 @@ const getTableColor = (tableId: string): string => {
   return colors[tableId] || "#6B7280";
 };
 
+// Export default config
+export default TABLE_CONFIGS;
+
+// Export fungsi untuk mendapatkan config berdasarkan table name
+export const getTableConfig = (tableName: string) => {
+  return (
+    TABLE_CONFIGS[tableName] || {
+      displayName: tableName,
+      icon: "grid",
+      description: "Data monitoring table",
+      searchableColumns: [],
+      columns: [],
+      actions: { view: true },
+    }
+  );
+};
+
 // Export list tabel yang tersedia untuk halaman index
-export const AVAILABLE_TABLES = Object.entries(TABLE_CONFIGS).map(([id, config]) => ({
-  id,
-  name: config.displayName,
-  description: config.description,
-  icon: config.icon,
-  color: getTableColor(id),
+export const AVAILABLE_TABLES = Object.keys(TABLE_CONFIGS).map((key) => ({
+  id: key,
+  name: TABLE_CONFIGS[key].displayName,
+  description: TABLE_CONFIGS[key].description,
+  icon: TABLE_CONFIGS[key].icon,
+  color: getTableColor(key),
 }));
+
+// Export list tabel yang tersedia untuk halaman index
+export const AVAILABLE_TABLES = Object.entries(TABLE_CONFIGS).map(
+  ([id, config]) => ({
+    id,
+    name: config.displayName,
+    description: config.description,
+    icon: config.icon,
+    color: getTableColor(id),
+  }),
+);
 
 // Export fungsi untuk mendapatkan config berdasarkan table name
 export const getTableConfig = (tableName: string): TableConfig => {
   const config = TABLE_CONFIGS[tableName as TableName];
-  
+
   if (config) {
     return config;
   }
-  
+
   // Return default config jika tidak ditemukan
   return {
     displayName: tableName,
