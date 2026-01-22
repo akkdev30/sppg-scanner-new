@@ -64,7 +64,7 @@ interface UserItem {
   last_login_at?: string;
 }
 
-const API_URL = "https://niftiest-longanamous-dreama.ngrok-free.dev/api";
+const API_URL = "https://sppg-backend-new.vercel.app/api";
 
 export default function AdminDashboardScreen() {
   const { user, logout, getToken } = useAuth();
