@@ -77,6 +77,7 @@ interface RefreshTokenResponse {
   token: string;
   refreshToken: string;
   expires_in: number;
+  error?: string;
 }
 
 interface VerifyResponse {

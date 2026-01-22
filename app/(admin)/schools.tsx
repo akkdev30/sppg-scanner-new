@@ -59,7 +59,7 @@ export default function SchoolsManagementScreen() {
       setLoading(true);
 
       // Load SPPG list first
-      const sppgRes = await fetch(`${API_URL}/dashboard/summary`, {
+      const sppgRes = await fetch(`${API_URL}/dashboard/admin/sppg`, {
         headers: {
           Authorization: `Bearer ${await getToken()}`,
           "ngrok-skip-browser-warning": "true",

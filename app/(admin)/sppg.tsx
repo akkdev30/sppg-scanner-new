@@ -44,7 +44,7 @@ export default function SPPGManagementScreen() {
     try {
       setLoading(true);
       const token = await getToken();
-      const res = await fetch(`${API_URL}/admin/sppg`, {
+      const res = await fetch(`${API_URL}/dashboard/admin/sppg`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
